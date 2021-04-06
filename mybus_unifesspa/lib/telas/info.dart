@@ -48,7 +48,7 @@ class Info extends StatelessWidget {
           children: [
             Table(
               children: [
-                _criarLinhaTable("MyBus", true),
+                _criarLinhaTable("WikiBus", true),
                 _divisor(),
                 _criarLinhaTable("Periodo de desenvolvimento", true),
                 _criarLinhaTable("2019-2020", false),

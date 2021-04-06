@@ -217,7 +217,7 @@ class Cadastro extends StatelessWidget {
                       child: Padding(
                         padding: EdgeInsets.only(right: 10),
                         child: Text(
-                          "Atenção, ao se cadastrar você estará automaticamente concordando com os Termos de Uso do aplicativo MyBus",
+                          "Atenção, ao se cadastrar você estará automaticamente concordando com os Termos de Uso do aplicativo WikiBus",
                           textAlign: TextAlign.center,
                         ),
                       ),

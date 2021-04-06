@@ -14,7 +14,7 @@ void main() async{
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]).then((_){
     runApp(
         MaterialApp(
-          title: "MyBus - Unifesspa",
+          title: "WikiBus - Unifesspa",
           theme: temaPadrao,
           initialRoute: "login",
           onGenerateRoute: Rotas.gerarRotas,
