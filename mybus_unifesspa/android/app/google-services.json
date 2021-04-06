@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "108289348724",
+    "project_id": "mybus-unifesspa",
+    "storage_bucket": "mybus-unifesspa.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:108289348724:android:090defd3b717d1cab7ed21",
+        "android_client_info": {
+          "package_name": "com.segatti.mybus_unifesspa"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "108289348724-j41cpvqgtg6g5curm6b81cbimg1pius3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA4ZHCncHTRBv7QAQIZZsGyCLT952IjBSg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "108289348724-j41cpvqgtg6g5curm6b81cbimg1pius3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

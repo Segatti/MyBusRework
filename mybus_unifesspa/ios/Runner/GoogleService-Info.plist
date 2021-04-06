@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>108289348724-pqbu17qrunltjo1g9kd3nct6e413c5iq.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.108289348724-pqbu17qrunltjo1g9kd3nct6e413c5iq</string>
+	<key>API_KEY</key>
+	<string>AIzaSyAEyai_mev42a3RV-9mORlEaTuDns2BcDQ</string>
+	<key>GCM_SENDER_ID</key>
+	<string>108289348724</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.segatti.mybusUnifesspa</string>
+	<key>PROJECT_ID</key>
+	<string>mybus-unifesspa</string>
+	<key>STORAGE_BUCKET</key>
+	<string>mybus-unifesspa.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:108289348724:ios:20750aa43d79164bb7ed21</string>
+</dict>
+</plist>
