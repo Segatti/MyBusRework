@@ -70,10 +70,19 @@ class Cadastro extends StatelessWidget {
               ),
               Padding(
                 padding: EdgeInsets.only(top: 25),
-                child: Text(
-                  "------------------ Questionário ------------------",
-                  textAlign: TextAlign.center,
-                ),
+                child: Row(
+                    children: <Widget>[
+                      Expanded(
+                          child: Divider()
+                      ),
+
+                      Text("Questionário"),
+
+                      Expanded(
+                          child: Divider()
+                      ),
+                    ]
+                )
               ),
               TextFormField(
                 controller: _cidade,
