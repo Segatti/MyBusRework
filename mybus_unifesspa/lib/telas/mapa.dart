@@ -4,6 +4,7 @@ import 'package:adaptive_dialog/adaptive_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
+import 'package:validadores/Validador.dart';
 
 class Mapa extends StatefulWidget {
   @override
@@ -26,6 +27,17 @@ class _MapaState extends State<Mapa> {
   //Usuário
   bool permissaoLocal;
   Position _position;
+
+  //Transporte
+  String _janelaTransporteTitulo = "Criar Transporte";
+  String _btnJanelaTransporteConfirmar = "Criar";
+  final _keyFormTransporte = GlobalKey<FormState>();
+  String _tipoSelecionado = "bus";
+
+  //PontoBus
+  String _janelaPontoBusTitulo = "Criar Ponto";
+  String _btnJanelaPontoBusConfirmar = "Criar";
+  final _keyFormPontoBus = GlobalKey<FormState>();
 
   @override
   void initState(){
@@ -110,6 +122,194 @@ class _MapaState extends State<Mapa> {
       CameraUpdate.newCameraPosition(
         CameraPosition(target: LatLng(_position.latitude, _position.longitude), zoom: 13)
       )
+    );
+  }
+
+  void janelaTransporte(){
+    showDialog(
+      context: context,
+      builder: (BuildContext context){
+        return AlertDialog(
+          title: Text(_janelaTransporteTitulo),
+          content: SingleChildScrollView(
+            child: Form(
+              key: _keyFormTransporte,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: DropdownButtonFormField(
+                          value: _tipoSelecionado,
+                          items: [
+                            DropdownMenuItem(
+                              value: "bus",
+                              child: Text("Ônibus"),
+                            ),
+                            DropdownMenuItem(
+                              value: "taxi-lotacao",
+                              child: Text("Táxi Lotação"),
+                            ),
+                            DropdownMenuItem(
+                              value: "moto-taxi",
+                              child: Text("Moto Táxi"),
+                            ),
+                          ],
+                          onChanged: (valor){
+                            setState(() {
+                              _tipoSelecionado = valor;
+                            });
+                          },
+                        ),
+                      )
+                    ],
+                  ),
+                  TextFormField(
+                    decoration: InputDecoration(
+                        labelText: "Destino",
+                        hintText: "Local onde irá descer do transporte"
+                    ),
+                    maxLines: null,
+                    maxLength: 200,
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(right: 5),
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.close),
+                              label: Text(
+                                  "Cancelar"
+                              ),
+                              onPressed: (){
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(vertical: 10),
+                                  primary: Colors.red
+                              ),
+                            ),
+                          )
+                      ),
+                      Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: 5),
+                            child: ElevatedButton.icon(
+                              icon: Icon(Icons.directions_bus),
+                              label: Text(
+                                  _btnJanelaTransporteConfirmar
+                              ),
+                              onPressed: (){
+                                //Criar o transporte
+                                setState(() {
+                                  _busAtivo = true;
+                                  _btnTransporte = Colors.green.withOpacity(0.7);
+                                });
+                                Navigator.pop(context);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                  padding: EdgeInsets.symmetric(vertical: 10),
+                                  primary: Colors.green
+                              ),
+                            ),
+                          )
+                      )
+                    ],
+                  )
+                ],
+              ),
+            ),
+          )
+        );
+      }
+    );
+  }
+
+  void janelaPontoBus(){
+    showDialog(
+        context: context,
+        builder: (BuildContext context){
+          return AlertDialog(
+              title: Text(_janelaPontoBusTitulo),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _keyFormPontoBus,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        decoration: InputDecoration(
+                            labelText: "Nome",
+                            hintText: "Algo facil de lembrar"
+                        ),
+                        maxLines: null,
+                        maxLength: 30,
+                        validator: (valor){
+                          return Validador().add(Validar.OBRIGATORIO, msg: "Campo Obrigatório").valido(valor);
+                        },
+                      ),
+                      TextFormField(
+                        decoration: InputDecoration(
+                            labelText: "Descrição",
+                            hintText: "Algum ponto de referência"
+                        ),
+                        maxLines: null,
+                        maxLength: 200,
+                        validator: (valor){
+                          return Validador().add(Validar.OBRIGATORIO, msg: "Campo Obrigatório").valido(valor);
+                        },
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: 5),
+                                child: ElevatedButton.icon(
+                                  icon: Icon(Icons.close),
+                                  label: Text(
+                                      "Cancelar"
+                                  ),
+                                  onPressed: (){
+                                    Navigator.pop(context);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      primary: Colors.red
+                                  ),
+                                ),
+                              )
+                          ),
+                          Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(left: 5),
+                                child: ElevatedButton.icon(
+                                  icon: Icon(Icons.add_location_alt),
+                                  label: Text(
+                                      _btnJanelaPontoBusConfirmar
+                                  ),
+                                  onPressed: (){
+                                    if(_keyFormPontoBus.currentState.validate()){
+                                      //Criar ponto de ônibus
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      primary: Colors.green
+                                  ),
+                                ),
+                              )
+                          )
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              )
+          );
+        }
     );
   }
 
@@ -205,7 +405,7 @@ class _MapaState extends State<Mapa> {
               child: Icon(Icons.add_location_alt),
               backgroundColor: Colors.yellow.withOpacity(0.7),
               onPressed: (){
-
+                janelaPontoBus();
               },
             ),
           ),
@@ -232,10 +432,7 @@ class _MapaState extends State<Mapa> {
               child: Icon(Icons.directions_bus),
               backgroundColor: _btnTransporte,
               onPressed: (){
-                setState(() {
-                  _busAtivo = true;
-                  _btnTransporte = Colors.green.withOpacity(0.7);
-                });
+                janelaTransporte();
               },
             ),
           )
