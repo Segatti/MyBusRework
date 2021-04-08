@@ -11,7 +11,8 @@ class PontoBus{
     return {
       "nome":this.nome,
       "descricao":this.descricao,
-      "localAtual":this.local
+      "localAtual":this.local,
+      "ultimaAtualizacao":DateTime.now()
     };
   }
 }

@@ -1,9 +1,12 @@
 import 'dart:async';
-
 import 'package:adaptive_dialog/adaptive_dialog.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
+import 'package:mybus_unifesspa/classes/PontoBus.dart';
+import 'package:mybus_unifesspa/classes/Transporte.dart';
 import 'package:validadores/Validador.dart';
 
 class Mapa extends StatefulWidget {
@@ -16,6 +19,7 @@ class _MapaState extends State<Mapa> {
   //Mapa
   MapboxMapController mapController;
   bool mapboxLocalizacao = false;
+  Symbol _symbolSelecionado;
 
   //Geral
   String _txtBtnBuscar = "Buscar Ponto de Ônibus";
@@ -31,13 +35,20 @@ class _MapaState extends State<Mapa> {
   //Transporte
   String _janelaTransporteTitulo = "Criar Transporte";
   String _btnJanelaTransporteConfirmar = "Criar";
+  Color _btnJanelaTransporteConfirmarCor = Colors.green;
   final _keyFormTransporte = GlobalKey<FormState>();
   String _tipoSelecionado = "bus";
+  TextEditingController _destinoTransporte = TextEditingController();
+  Map<String, dynamic> _dadosTransporte = Map<String, dynamic>();
+  Map<String, dynamic> _symbolTransporte = Map<String, dynamic>();
 
   //PontoBus
   String _janelaPontoBusTitulo = "Criar Ponto";
-  String _btnJanelaPontoBusConfirmar = "Criar";
+  TextEditingController _nomePontoBus = TextEditingController();
+  TextEditingController _descricaoPontoBus = TextEditingController();
   final _keyFormPontoBus = GlobalKey<FormState>();
+  Map<String, dynamic> _dadosPontoBus = Map<String, dynamic>();
+  Map<String, dynamic> _symbolPontoBus = Map<String, dynamic>();
 
   @override
   void initState(){
@@ -49,8 +60,147 @@ class _MapaState extends State<Mapa> {
     mapController = controller;
   }
 
-  void onStyleLoadedCallback() {
+  void _onSymbolTapped(Symbol symbol){
+    if(_symbolSelecionado != null){
+      mapController.updateSymbol(
+        _symbolSelecionado,
+        SymbolOptions(iconSize: 1.2)
+      );
+    }
+
+    _symbolSelecionado = symbol;
+
+    mapController.updateSymbol(
+      _symbolSelecionado,
+      SymbolOptions(iconSize: 1.5)
+    );
+
+    if(_symbolSelecionado.options.iconImage != ""){//Removendo os symbol pré carregados que não tem icone
+      if(_symbolSelecionado.options.iconImage == "bus"){//Foi selecionado o ponto de ônibus
+        String _id = _symbolSelecionado.options.textTransform;
+        janelaPontoBusMapBox(_id);
+      }else{//Selecionado algum transporte
+        String _id = _symbolSelecionado.options.textTransform;
+        print(_id);
+        janelaTransporteMapBox(_id);
+      }
+    }
+
+  }
+
+  void _onStyleLoadedCallback() {
     print("Mapa carregado!");
+    carregarPontoBus();
+    carregarTransporte();
+    mapController.onSymbolTapped.add((_onSymbolTapped));
+  }
+
+  void carregarPontoBus(){
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("PontoBus").snapshots().listen((snapshot) {
+      snapshot.docChanges.forEach((dados) async{
+        if(dados.type == DocumentChangeType.added){
+          //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
+          String _id = dados.doc.id;
+          _dadosPontoBus.putIfAbsent(_id, () => dados.doc.data());
+          Symbol symbol = await mapController.addSymbol(
+            SymbolOptions(
+              textField: _dadosPontoBus[_id]['nome'],
+              textTransform: _id,//Isso é um "atalho", evita muito código de busca para encontrar o dado, não retirar a menos que encontre um método mais otimizado
+              textAnchor: 'top',
+              iconImage: 'bus',
+              iconSize: 1.2,
+              iconAnchor: 'bottom',
+              geometry: LatLng(
+                _dadosPontoBus[_id]['localAtual'].latitude,
+                _dadosPontoBus[_id]['localAtual'].longitude
+              ),
+            ),
+          );
+          _symbolPontoBus.putIfAbsent(_id, () => symbol);
+          print("Dado adicionado! ${_dadosPontoBus[_id]}");
+        }else if(dados.type == DocumentChangeType.modified){
+          //Atualizado no firebase
+          String _id = dados.doc.id;
+          _dadosPontoBus[_id] = dados.doc.data();
+          await mapController.updateSymbol(
+            _symbolPontoBus[_id],
+            SymbolOptions(
+              textField: _dadosPontoBus[_id]['nome']
+            )
+          );
+          print("Dado atualizado! ${_dadosPontoBus[_id]}");
+        }else if(dados.type == DocumentChangeType.removed){
+          //Removido do firebase
+          String _id = dados.doc.id;
+          if(_symbolSelecionado == _symbolPontoBus[_id]) _symbolSelecionado = null; //Caso eu esteja deletando o symbol selecionado
+          await mapController.removeSymbol(_symbolPontoBus[_id]);
+          _dadosPontoBus.remove(_id);
+          _symbolPontoBus.remove(_id);
+          print("Dado removido! ${dados.doc.data()}");
+        }
+      });
+    });
+  }
+
+  void carregarTransporte(){
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("Transporte").snapshots().listen((snapshot) {
+      snapshot.docChanges.forEach((dados) async{
+        if(dados.type == DocumentChangeType.added){
+          //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
+          String _id = dados.doc.id;
+          _dadosTransporte.putIfAbsent(_id, () => dados.doc.data());
+          /*Atenção - Muito importante
+          * Os symbols que serve para representar o transporte devem ser "pré carregados"
+          * antes de pode utilizar, isso porque o symbol quando adicionado a primeira vez
+          * já se torna a posição PERMANENTE, ou seja, não tem como mover de local
+          * e caso tente mudar a posição vai haver uma duplicação, e somente a duplicação
+          * vai poder se mover livremente, tendo isso em mente, escolhi por deixar
+          * invisivel o symbol que fica permanente e só quando é atualizado o transporte(duplicata),
+          * é quando vai aparecer no mapa, espero que tenha entendido, futuro programador kkkkk.
+          * */
+          Symbol symbol = await mapController.addSymbol(
+            SymbolOptions(
+                geometry: LatLng(
+                    _dadosTransporte[_id]['localAtual'].latitude,
+                    _dadosTransporte[_id]['localAtual'].longitude
+                )
+            ),
+          );
+          _symbolTransporte.putIfAbsent(_id, () => symbol);
+          print("Dado adicionado! ${_dadosTransporte[_id]}");
+        }else if(dados.type == DocumentChangeType.modified){
+          //Atualizado no firebase
+          String _id = dados.doc.id;
+          _dadosTransporte[_id] = dados.doc.data();
+          await mapController.updateSymbol(
+              _symbolTransporte[_id],
+              SymbolOptions(
+                  textField: _dadosTransporte[_id]['nome'],
+                  textTransform: _id,//Isso é um "atalho", evita muito código de busca para encontrar o dado, não retirar a menos que encontre um método mais otimizado
+                  textAnchor: 'top',
+                  iconImage: getIcone(_dadosTransporte[_id]['tipo']),
+                  iconSize: 1.2,
+                  iconAnchor: 'bottom',
+                  geometry: LatLng(
+                      _dadosTransporte[_id]['localAtual'].latitude,
+                      _dadosTransporte[_id]['localAtual'].longitude
+                  )
+              )
+          );
+          print("Dado atualizado! ${_dadosTransporte[_id]}");
+        }else if(dados.type == DocumentChangeType.removed){
+          //Removido do firebase
+          String _id = dados.doc.id;
+          if(_symbolSelecionado == _symbolTransporte[_id]) _symbolSelecionado = null; //Caso eu esteja deletando o symbol selecionado
+          await mapController.removeSymbol(_symbolTransporte[_id]);
+          _dadosTransporte.remove(_id);
+          _symbolTransporte.remove(_id);
+          print("Dado removido! ${dados.doc.data()}");
+        }
+      });
+    });
   }
 
   void getPermissaoLocalizacao() async{
@@ -94,14 +244,14 @@ class _MapaState extends State<Mapa> {
     if(listen){
       StreamSubscription<Position> positionStream = Geolocator.getPositionStream(
         desiredAccuracy: LocationAccuracy.bestForNavigation,
-        distanceFilter: 5,
-        intervalDuration: Duration(seconds: 5)
+        intervalDuration: Duration(seconds: 5)//Tem que lembrar que o banco de dados é gratuito, ou seja, tem limite de requisição, por isso tem que restringir!
       ).listen((Position posicao) {
         if(_position == null){//teoricamente, só vai entrar na hora que abrir
           setState(() {
             _position = posicao;
             mapboxLocalizacao = true;
           });
+          if(_busAtivo && _position != null) atualizarTransporte();//Caso esteja compartilhando a localização
         }else{
           _position = posicao;
           if(_position == null){//Caso ocorra uma falha, desativa a localização
@@ -109,6 +259,7 @@ class _MapaState extends State<Mapa> {
               mapboxLocalizacao = false;
             });
           }
+          if(_busAtivo && _position != null) atualizarTransporte();//Caso esteja compartilhando a localização
         }
       });
       print(positionStream);
@@ -166,10 +317,14 @@ class _MapaState extends State<Mapa> {
                     ],
                   ),
                   TextFormField(
+                    controller: _destinoTransporte,
                     decoration: InputDecoration(
                         labelText: "Destino",
                         hintText: "Local onde irá descer do transporte"
                     ),
+                    validator: (valor){
+                      return Validador().add(Validar.OBRIGATORIO, msg: "Campo obrigatório").valido(valor);
+                    },
                     maxLines: null,
                     maxLength: 200,
                   ),
@@ -202,16 +357,15 @@ class _MapaState extends State<Mapa> {
                                   _btnJanelaTransporteConfirmar
                               ),
                               onPressed: (){
-                                //Criar o transporte
-                                setState(() {
-                                  _busAtivo = true;
-                                  _btnTransporte = Colors.green.withOpacity(0.7);
-                                });
-                                Navigator.pop(context);
+                                if(_keyFormTransporte.currentState.validate()){
+                                  //Criar o transporte
+                                  criarTransporte();
+                                  Navigator.pop(context);
+                                }
                               },
                               style: ElevatedButton.styleFrom(
                                   padding: EdgeInsets.symmetric(vertical: 10),
-                                  primary: Colors.green
+                                  primary: _btnJanelaTransporteConfirmarCor
                               ),
                             ),
                           )
@@ -224,6 +378,92 @@ class _MapaState extends State<Mapa> {
           )
         );
       }
+    );
+  }
+
+  void janelaTransporteMapBox(String _id){//Janela que aparece ao clicar no icone
+    Map<String, dynamic> dados = _dadosTransporte[_id];
+    print(dados);
+    String tipo = dados['tipo'];
+    TextEditingController destino = TextEditingController();
+    destino.text = dados['destino'];
+    showDialog(
+        context: context,
+        builder: (BuildContext context){
+          return AlertDialog(
+              title: Text("Informações"),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _keyFormTransporte,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField(
+                              isDense: false,
+                              value: tipo,
+                              items: [
+                                DropdownMenuItem(
+                                  value: "bus",
+                                  child: Text("Ônibus"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "taxi-lotacao",
+                                  child: Text("Táxi Lotação"),
+                                ),
+                                DropdownMenuItem(
+                                  value: "moto-taxi",
+                                  child: Text("Moto Táxi"),
+                                ),
+                              ],
+                              onChanged: null,
+                            ),
+                          )
+                        ],
+                      ),
+                      TextFormField(
+                        controller: destino,
+                        enabled: false,
+                        decoration: InputDecoration(
+                            labelText: "Destino",
+                            hintText: "Local onde irá descer do transporte"
+                        ),
+                        validator: (valor){
+                          return Validador().add(Validar.OBRIGATORIO, msg: "Campo obrigatório").valido(valor);
+                        },
+                        maxLines: null,
+                        maxLength: 200,
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(right: 5),
+                                child: ElevatedButton.icon(
+                                  icon: Icon(Icons.close),
+                                  label: Text(
+                                      "Fechar"
+                                  ),
+                                  onPressed: (){
+                                    Navigator.pop(context);
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      primary: Colors.red
+                                  ),
+                                ),
+                              )
+                          ),
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              )
+          );
+        }
     );
   }
 
@@ -240,6 +480,7 @@ class _MapaState extends State<Mapa> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       TextFormField(
+                        controller: _nomePontoBus,
                         decoration: InputDecoration(
                             labelText: "Nome",
                             hintText: "Algo facil de lembrar"
@@ -251,6 +492,7 @@ class _MapaState extends State<Mapa> {
                         },
                       ),
                       TextFormField(
+                        controller: _descricaoPontoBus,
                         decoration: InputDecoration(
                             labelText: "Descrição",
                             hintText: "Algum ponto de referência"
@@ -287,11 +529,12 @@ class _MapaState extends State<Mapa> {
                                 child: ElevatedButton.icon(
                                   icon: Icon(Icons.add_location_alt),
                                   label: Text(
-                                      _btnJanelaPontoBusConfirmar
+                                      'Criar'
                                   ),
                                   onPressed: (){
                                     if(_keyFormPontoBus.currentState.validate()){
                                       //Criar ponto de ônibus
+                                      criarPontoBus();
                                       Navigator.pop(context);
                                     }
                                   },
@@ -311,6 +554,283 @@ class _MapaState extends State<Mapa> {
           );
         }
     );
+  }
+
+  void janelaPontoBusMapBox(String _id){//Janela que aparece ao clicar no icone
+    Map<String, dynamic> dados = _dadosPontoBus[_id];
+    TextEditingController nome = TextEditingController();
+    nome.text = dados['nome'];
+    TextEditingController descricao = TextEditingController();
+    descricao.text = dados['descricao'];
+    showDialog(
+        context: context,
+        builder: (BuildContext context){
+          return AlertDialog(
+              title: Text('Informações'),
+              content: SingleChildScrollView(
+                child: Form(
+                  key: _keyFormPontoBus,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nome,
+                        decoration: InputDecoration(
+                            labelText: "Nome",
+                            hintText: "Algo facil de lembrar"
+                        ),
+                        maxLines: null,
+                        maxLength: 30,
+                        validator: (valor){
+                          return Validador().add(Validar.OBRIGATORIO, msg: "Campo Obrigatório").valido(valor);
+                        },
+                      ),
+                      TextFormField(
+                        controller: descricao,
+                        decoration: InputDecoration(
+                            labelText: "Descrição",
+                            hintText: "Algum ponto de referência"
+                        ),
+                        maxLines: null,
+                        maxLength: 200,
+                        validator: (valor){
+                          return Validador().add(Validar.OBRIGATORIO, msg: "Campo Obrigatório").valido(valor);
+                        },
+                      ),
+                      Row(
+                        children: [
+                          Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(left: 5),
+                                child: ElevatedButton.icon(
+                                  icon: Icon(Icons.restore_from_trash_sharp),
+                                  label: Text(
+                                      'Deletar'
+                                  ),
+                                  onPressed: (){
+                                    if(_keyFormPontoBus.currentState.validate()){
+                                      //Deletar ponto de ônibus
+                                      deletarPontoBus(_id);
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      primary: Colors.amber
+                                  ),
+                                ),
+                              )
+                          ),
+                          Expanded(
+                              child: Padding(
+                                padding: EdgeInsets.only(left: 5),
+                                child: ElevatedButton.icon(
+                                  icon: Icon(Icons.add_location_alt),
+                                  label: Text(
+                                      'Salvar'
+                                  ),
+                                  onPressed: (){
+                                    if(_keyFormPontoBus.currentState.validate()){
+                                      //Salvar ponto de ônibus
+                                      atualizarPontoBus(_id, nome.text, descricao.text);
+                                      Navigator.pop(context);
+                                    }
+                                  },
+                                  style: ElevatedButton.styleFrom(
+                                      padding: EdgeInsets.symmetric(vertical: 10),
+                                      primary: Colors.blue
+                                  ),
+                                ),
+                              )
+                          )
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              )
+          );
+        }
+    );
+  }
+
+  String getNome(String tipo){
+    switch(tipo){
+      case "bus": return "Ônibus";
+      case "taxi-lotacao": return "Táxi Lot.";
+      case "moto-taxi": return "Moto Táxi";
+      default: return "Erro";
+    }
+  }
+
+  String getIcone(String tipo){
+    switch(tipo){
+      case "bus": return "bus-15";
+      case "taxi-lotacao": return "car-15-maki";
+      case "moto-taxi": return "moto-15";
+      default: return "road-closure";
+    }
+  }
+
+  void criarTransporte() {
+    String _id = FirebaseAuth.instance.currentUser.uid;
+    minhaLocalizacao(false);
+    Transporte transporte = Transporte(getNome(_tipoSelecionado), _tipoSelecionado, _destinoTransporte.text, GeoPoint(_position.latitude, _position.longitude));
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("Transporte").doc(_id).set(transporte.toMap()).then((value){
+      print("Transporte Criado!");
+      final snackBar = SnackBar(
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Transporte criado!"
+        ),
+      );
+      setState(() {
+        _busAtivo = true;
+        _btnTransporte = Colors.green.withOpacity(0.7);
+        _btnJanelaTransporteConfirmar = "Salvar";
+        _btnJanelaTransporteConfirmarCor = Colors.blue;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }).catchError((error){
+      print(error);
+      final snackBar = SnackBar(
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ops... Houve um erro!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    });
+  }
+
+  void atualizarTransporte() {
+    String _id = FirebaseAuth.instance.currentUser.uid;
+    minhaLocalizacao(false);
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("Transporte").doc(_id).update({
+      "localAtual":GeoPoint(_position.latitude, _position.longitude),
+      "ultimaAtualizacao":DateTime.now()
+    }).then((value){
+      print("Posição do transporte atualizado!");
+    }).catchError((error){
+      print(error);
+    });
+  }
+
+  void deletarTransporte() {
+    String _id = FirebaseAuth.instance.currentUser.uid;
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("Transporte").doc(_id).delete().then((value){
+      print("Transporte Cancelado!");
+      final snackBar = SnackBar(
+        backgroundColor: Colors.amber,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Transporte cancelado!"
+        ),
+      );
+      setState(() {
+        _busAtivo = false;
+        _btnTransporte = Colors.grey.withOpacity(0.7);
+        _btnJanelaTransporteConfirmar = "Criar";
+        _btnJanelaTransporteConfirmarCor = Colors.green;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }).catchError((error){
+      print(error);
+      final snackBar = SnackBar(
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ops... Houve um erro!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    });
+  }
+
+  void criarPontoBus() {
+    minhaLocalizacao(false);
+    PontoBus pontoBus = PontoBus(_nomePontoBus.text, _descricaoPontoBus.text, GeoPoint(_position.latitude, _position.longitude));
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("PontoBus").add(pontoBus.toMap()).then((value){
+      print("Ponto Criado!");
+      final snackBar = SnackBar(
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ponto criado!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }).catchError((error){
+      print(error);
+      final snackBar = SnackBar(
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ops... Houve um erro!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    });
+  }
+
+  void atualizarPontoBus(String _id, nome, descricao) {
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("PontoBus").doc(_id).update({
+      "nome":nome,
+      "descricao":descricao,
+      "ultimaAtualizacao":DateTime.now()
+    }).then((value){
+      print("Ponto Atualizado!");
+      final snackBar = SnackBar(
+        backgroundColor: Colors.blue,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ponto Atualizado!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }).catchError((error){
+      print(error);
+      final snackBar = SnackBar(
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ops... Houve um erro!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    });
+  }
+
+  void deletarPontoBus(String _id) {
+    FirebaseFirestore firebase = FirebaseFirestore.instance;
+    firebase.collection("PontoBus").doc(_id).delete().then((value){
+      print("Ponto Cancelado!");
+      final snackBar = SnackBar(
+        backgroundColor: Colors.yellow,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ponto deletado!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    }).catchError((error){
+      print(error);
+      final snackBar = SnackBar(
+        backgroundColor: Colors.red,
+        behavior: SnackBarBehavior.floating,
+        content: Text(
+            "Ops... Houve um erro!"
+        ),
+      );
+      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+    });
   }
 
   @override
@@ -353,7 +873,7 @@ class _MapaState extends State<Mapa> {
               accessToken: "pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrOGk1bW50NzAyOTIzbXBqcnR4Njk2bGQifQ.fIxLWrS0pbmlErHwYSfjhw",
               onMapCreated: _onMapCreated,
               initialCameraPosition: const CameraPosition(target: LatLng(0.0, 0.0)),
-              onStyleLoadedCallback: onStyleLoadedCallback,
+              onStyleLoadedCallback: _onStyleLoadedCallback,
               styleString: "mapbox://styles/mybusprojeto/cklsrgqne1qoo17qlj57b6fwv",
               scrollGesturesEnabled: true,
               zoomGesturesEnabled: true,
@@ -418,10 +938,7 @@ class _MapaState extends State<Mapa> {
                 backgroundColor: Colors.red.withOpacity(0.7),
                 mini: true,
                 onPressed: (){
-                  setState(() {
-                    _busAtivo = false;
-                    _btnTransporte = Colors.grey.withOpacity(0.7);
-                  });
+                  deletarTransporte();
                 },
               ),
             ),

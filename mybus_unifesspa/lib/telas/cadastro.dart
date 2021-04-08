@@ -260,6 +260,7 @@ class Cadastro extends StatelessWidget {
                             FirebaseFirestore firebase = FirebaseFirestore.instance;
                             firebase.collection("Usuarios").doc(id).set(usuario.toMap()).then((value){
                               final snackBar = SnackBar(
+                                backgroundColor: Colors.green,
                                 content: Text(
                                     "Cadastrado com sucesso!"
                                 ),
@@ -270,6 +271,7 @@ class Cadastro extends StatelessWidget {
                           }).catchError((error){
                             print(error);
                             final snackBar = SnackBar(
+                              backgroundColor: Colors.red,
                               content: Text(
                                   "Houve um erro ao cadastrar!"
                               ),
