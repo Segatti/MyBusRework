@@ -31,9 +31,10 @@ dependencies:
   url_launcher: ^6.0.3
   validadores: ^1.0.2
   firebase_core: ^1.0.3
-  firebase_auth: ^1.0.2
+  firebase_auth: ^1.0.3
   cloud_firestore: ^1.0.4
   mapbox_gl: ^0.11.0
+  http: ^0.13.1
   geolocator: ^7.0.1
   flutter_launcher_icons: ^0.8.1 #biblioteca está dando conflito com mapbox n aversão mais recente
   adaptive_dialog: ^0.10.0+5

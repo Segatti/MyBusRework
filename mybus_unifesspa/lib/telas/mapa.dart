@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:adaptive_dialog/adaptive_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:mybus_unifesspa/classes/PontoBus.dart';
 import 'package:mybus_unifesspa/classes/Transporte.dart';
 import 'package:validadores/Validador.dart';
+import 'package:http/http.dart' as http;
 
 class Mapa extends StatefulWidget {
   @override
@@ -27,6 +29,7 @@ class _MapaState extends State<Mapa> {
   Color _btnBuscar = Colors.blue;
   Color _btnTransporte = Colors.grey.withOpacity(0.7);
   bool _busAtivo = false;
+  bool _rotaAtiva = false;
 
   //Usuário
   bool permissaoLocal;
@@ -41,6 +44,7 @@ class _MapaState extends State<Mapa> {
   TextEditingController _destinoTransporte = TextEditingController();
   Map<String, dynamic> _dadosTransporte = Map<String, dynamic>();
   Map<String, dynamic> _symbolTransporte = Map<String, dynamic>();
+  bool _modoEspera = false;
 
   //PontoBus
   String _janelaPontoBusTitulo = "Criar Ponto";
@@ -251,7 +255,8 @@ class _MapaState extends State<Mapa> {
             _position = posicao;
             mapboxLocalizacao = true;
           });
-          if(_busAtivo && _position != null) atualizarTransporte();//Caso esteja compartilhando a localização
+          if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
+          if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
         }else{
           _position = posicao;
           if(_position == null){//Caso ocorra uma falha, desativa a localização
@@ -259,7 +264,8 @@ class _MapaState extends State<Mapa> {
               mapboxLocalizacao = false;
             });
           }
-          if(_busAtivo && _position != null) atualizarTransporte();//Caso esteja compartilhando a localização
+          if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
+          if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
         }
       });
       print(positionStream);
@@ -610,8 +616,12 @@ class _MapaState extends State<Mapa> {
                                   onPressed: (){
                                     if(_keyFormPontoBus.currentState.validate()){
                                       //Deletar ponto de ônibus
-                                      deletarPontoBus(_id);
-                                      Navigator.pop(context);
+                                      if(symbolDentroRaio(_dadosPontoBus[_id]['localAtual'], 50)){//Só pode deletar o ponto, caso esteja próximo dele, ou seja, teoricamente você está confirmando que ele não existe
+                                        deletarPontoBus(_id);
+                                        Navigator.pop(context);
+                                      }else{
+                                        showOkAlertDialog(context: context, title: "Atenção", message: "Só pode deletar ponto de ônibus caso esteja próximo, dessa forma você pode confirmar que ele não existe!");
+                                      }
                                     }
                                   },
                                   style: ElevatedButton.styleFrom(
@@ -675,35 +685,54 @@ class _MapaState extends State<Mapa> {
   void criarTransporte() {
     String _id = FirebaseAuth.instance.currentUser.uid;
     minhaLocalizacao(false);
-    Transporte transporte = Transporte(getNome(_tipoSelecionado), _tipoSelecionado, _destinoTransporte.text, GeoPoint(_position.latitude, _position.longitude));
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("Transporte").doc(_id).set(transporte.toMap()).then((value){
-      print("Transporte Criado!");
+    String _idBusProximo = symbolMaisProximo(_dadosTransporte);
+    GeoPoint posicaoBus = (_idBusProximo != "") ? _dadosTransporte[_idBusProximo]['localAtual'] : GeoPoint(0, 0);//0,0 fica no meio do mar, não vai ter problema
+    if(!symbolDentroRaio(posicaoBus, 10)){//Só cria o transporte caso não tenha nenhum a 10m, assim evita várias pessoas compartilhar o mesmo transporte
+      Transporte transporte = Transporte(getNome(_tipoSelecionado), _tipoSelecionado, _destinoTransporte.text, GeoPoint(_position.latitude, _position.longitude));
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("Transporte").doc(_id).set(transporte.toMap()).then((value){
+        print("Transporte Criado!");
+        final snackBar = SnackBar(
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Transporte criado!"
+          ),
+        );
+        setState(() {
+          _busAtivo = true;
+          _btnTransporte = Colors.green.withOpacity(0.7);
+          _btnJanelaTransporteConfirmar = "Salvar";
+          _btnJanelaTransporteConfirmarCor = Colors.blue;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }).catchError((error){
+        print(error);
+        final snackBar = SnackBar(
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ops... Houve um erro!"
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    }else{//Entra em modo de espera, até sair
+      print("Transporte entrou em modo de espera!");
       final snackBar = SnackBar(
-        backgroundColor: Colors.green,
+        backgroundColor: Colors.amber,
         behavior: SnackBarBehavior.floating,
         content: Text(
-            "Transporte criado!"
+            "Você entrou em modo de espera!"
         ),
       );
       setState(() {
+        _modoEspera = true;//Quando distanciar irá compartilhar automaticamente, quando ficar false
         _busAtivo = true;
-        _btnTransporte = Colors.green.withOpacity(0.7);
-        _btnJanelaTransporteConfirmar = "Salvar";
-        _btnJanelaTransporteConfirmarCor = Colors.blue;
+        _btnTransporte = Colors.amber.withOpacity(0.7);
       });
       ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }).catchError((error){
-      print(error);
-      final snackBar = SnackBar(
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ops... Houve um erro!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    });
+    }
   }
 
   void atualizarTransporte() {
@@ -721,35 +750,43 @@ class _MapaState extends State<Mapa> {
   }
 
   void deletarTransporte() {
-    String _id = FirebaseAuth.instance.currentUser.uid;
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("Transporte").doc(_id).delete().then((value){
-      print("Transporte Cancelado!");
-      final snackBar = SnackBar(
-        backgroundColor: Colors.amber,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Transporte cancelado!"
-        ),
-      );
+    if(!_modoEspera){
+      String _id = FirebaseAuth.instance.currentUser.uid;
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("Transporte").doc(_id).delete().then((value){
+        print("Transporte Cancelado!");
+        final snackBar = SnackBar(
+          backgroundColor: Colors.amber,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Transporte cancelado!"
+          ),
+        );
+        setState(() {
+          _busAtivo = false;
+          _btnTransporte = Colors.grey.withOpacity(0.7);
+          _btnJanelaTransporteConfirmar = "Criar";
+          _btnJanelaTransporteConfirmarCor = Colors.green;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }).catchError((error){
+        print(error);
+        final snackBar = SnackBar(
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ops... Houve um erro!"
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    }else{
       setState(() {
         _busAtivo = false;
+        _modoEspera = false;
         _btnTransporte = Colors.grey.withOpacity(0.7);
-        _btnJanelaTransporteConfirmar = "Criar";
-        _btnJanelaTransporteConfirmarCor = Colors.green;
       });
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }).catchError((error){
-      print(error);
-      final snackBar = SnackBar(
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ops... Houve um erro!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    });
+    }
   }
 
   void criarPontoBus() {
@@ -833,6 +870,131 @@ class _MapaState extends State<Mapa> {
     });
   }
 
+  String symbolMaisProximo(Map<String, dynamic> listaDados) {
+    minhaLocalizacao(false);
+    Position minhaPosicao = _position;
+    double distancia = double.infinity;
+    String id = "";
+    listaDados.forEach((_id, dado) {
+      double novaDistacia = Geolocator.distanceBetween(minhaPosicao.latitude, minhaPosicao.longitude, dado['localAtual'].latitude, dado['localAtual'].longitude);
+      if(distancia >= novaDistacia){
+        distancia = novaDistacia;
+        id = _id;
+      }
+    });
+    return id;
+  }
+
+  bool symbolDentroRaio(GeoPoint symbolPosicao, double raio){
+    minhaLocalizacao(false);
+    Position minhaPosicao = _position;
+    double distanciaSymbol = Geolocator.distanceBetween(minhaPosicao.latitude, minhaPosicao.longitude, symbolPosicao.latitude, symbolPosicao.longitude);
+    if(distanciaSymbol <= raio){
+      return true;
+    }else{
+      return false;
+    }
+  }
+
+  void buscarPontoBus() async{
+    minhaLocalizacao(false);
+    GeoPoint minhaPosicao = GeoPoint(_position.latitude, _position.longitude);
+    String idPontoBus = symbolMaisProximo(_dadosPontoBus);
+    if(idPontoBus != ""){//Ou seja, encontrou uma ponto de bus
+      GeoPoint symbolPosicao = _dadosPontoBus[idPontoBus]['localAtual'];
+      //https://docs.mapbox.com/api/navigation/directions/#retrieve-directions
+      //No link acima está as configurações possiveis para usar na requisição http
+      String urlBase = 'https://api.mapbox.com/directions/v5/mapbox/walking/';
+      const String access_token = 'pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrOGk1bW50NzAyOTIzbXBqcnR4Njk2bGQifQ.fIxLWrS0pbmlErHwYSfjhw';
+      String urlFinal = urlBase +
+          minhaPosicao.longitude.toString() +
+          ',' +
+          minhaPosicao.latitude.toString() +
+          ';' +
+          symbolPosicao.longitude.toString() +
+          ',' +
+          symbolPosicao.latitude.toString() +
+          '?steps=true' +
+          '&access_token=' +
+          access_token;
+      print(urlFinal);
+      var url = Uri.parse(urlFinal);
+      var response = await http.get(url);
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+      Map<String, dynamic> valor = jsonDecode(response.body);
+      if (valor['code'] != "InvalidInput") {
+        //Codigo de erro, quando não encontra rota
+        List<dynamic> rotaJSON = valor['routes'][0]['legs'][0]['steps'];
+        List<dynamic> rotaAUX = [];
+        List<GeoPoint> pontosRota = [];
+        for (int i = 0; i < rotaJSON.length; i++) {
+          rotaAUX.add(rotaJSON[i]['intersections']);
+        }
+        for (int i = 0; i < rotaAUX.length; i++) {
+          for (int j = 0; j < rotaAUX[i].length; j++) {
+            GeoPoint aux = new GeoPoint(rotaAUX[i][j]['location'][1], rotaAUX[i][j]['location'][0]);
+            pontosRota.add(aux);
+          }
+        }
+        if(pontosRota.isNotEmpty){
+          List<LatLng> rotaGeradaConvertida = [];
+          for (int i = 0; i < pontosRota.length; i++) {
+            LatLng auxPoint =
+            new LatLng(pontosRota[i].latitude, pontosRota[i].longitude);
+            rotaGeradaConvertida.add(auxPoint);
+          }
+          await mapController.addLine(
+            LineOptions(
+              geometry: rotaGeradaConvertida,
+              lineColor: "#ff0000",
+              lineWidth: 5.0,
+              lineOpacity: 0.5,
+            ),
+          ).then((_){
+            LatLng northeast;
+            LatLng southwest;
+            if (minhaPosicao.latitude <= symbolPosicao.latitude) {
+              northeast = new LatLng(symbolPosicao.latitude, symbolPosicao.longitude);
+              southwest = new LatLng(minhaPosicao.latitude, minhaPosicao.longitude);
+            } else {
+              northeast = new LatLng(minhaPosicao.latitude, minhaPosicao.longitude);
+              southwest = new LatLng(symbolPosicao.latitude, symbolPosicao.longitude);
+            }
+            LatLngBounds zoomPontos = new LatLngBounds(
+              northeast: northeast,
+              southwest: southwest,
+            );
+            mapController
+                .animateCamera(
+              CameraUpdate.newLatLngBounds(zoomPontos),
+            );
+            setState(() {
+              _txtBtnBuscar = "Apagar Rota";
+              _btnBuscar = Colors.red;
+              _rotaAtiva = true;
+            });
+          });
+        }else{
+          showOkAlertDialog(context: context, title: "Atenção", message: "Ocorreu um erro: Rota gerada é vazia!");
+        }
+      }else{
+        showOkAlertDialog(context: context, title: "Atenção", message: "Não existe caminho até o ponto mais próximo!");
+      }
+    }else{
+      showOkAlertDialog(context: context, title: "Atenção", message: "Não existe pontos de ônibus no mapa!");
+    }
+  }
+
+  void apagarRota(){
+    mapController.clearLines();
+    setState(() {
+      _rotaAtiva = false;
+      _txtBtnBuscar = "Buscar Ponto de Ônibus";
+      _btnBuscar = Colors.blue;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -892,6 +1054,7 @@ class _MapaState extends State<Mapa> {
                   ),
                   onPressed: (){
                     //Buscar o ponto mais proximo
+                    (_rotaAtiva) ? apagarRota() : buscarPontoBus();
                   },
                   style: ElevatedButton.styleFrom(
                       padding: EdgeInsets.symmetric(vertical: 20),
