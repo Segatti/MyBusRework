@@ -22,6 +22,7 @@ class _MapaState extends State<Mapa> {
   MapboxMapController mapController;
   bool mapboxLocalizacao = false;
   Symbol _symbolSelecionado;
+  List<GeoPoint> _rotaGerada = [];
 
   //Geral
   String _txtBtnBuscar = "Buscar Ponto de Ônibus";
@@ -257,6 +258,7 @@ class _MapaState extends State<Mapa> {
           });
           if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
           if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
+          if(_rotaAtiva && _rotaGerada != []) calculaTimePonto(_rotaGerada);//Atualiza o tempo até a parada de ônibus
         }else{
           _position = posicao;
           if(_position == null){//Caso ocorra uma falha, desativa a localização
@@ -266,6 +268,7 @@ class _MapaState extends State<Mapa> {
           }
           if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
           if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
+          if(_rotaAtiva && _rotaGerada != []) calculaTimePonto(_rotaGerada);//Atualiza o tempo até a parada de ônibus
         }
       });
       print(positionStream);
@@ -700,6 +703,7 @@ class _MapaState extends State<Mapa> {
           ),
         );
         setState(() {
+          apagarRota();//É sem sentido deixar a rota gerada quando já está no transporte, e rota é para encontrar o ponto para pegar o transporte...
           _busAtivo = true;
           _btnTransporte = Colors.green.withOpacity(0.7);
           _btnJanelaTransporteConfirmar = "Salvar";
@@ -973,7 +977,9 @@ class _MapaState extends State<Mapa> {
               _txtBtnBuscar = "Apagar Rota";
               _btnBuscar = Colors.red;
               _rotaAtiva = true;
+              _rotaGerada = pontosRota;
             });
+            calculaTimePonto(_rotaGerada);
           });
         }else{
           showOkAlertDialog(context: context, title: "Atenção", message: "Ocorreu um erro: Rota gerada é vazia!");
@@ -992,7 +998,75 @@ class _MapaState extends State<Mapa> {
       _rotaAtiva = false;
       _txtBtnBuscar = "Buscar Ponto de Ônibus";
       _btnBuscar = Colors.blue;
+      _txtTimeBus = "Eu → Ponto: ∞";
+      _rotaGerada = [];
     });
+  }
+
+  void calculaTimePonto(List<GeoPoint> rota){
+    minhaLocalizacao(false);
+    Position _minhaPosicao = _position;
+    double distanciaTotal = 0;
+    int valorProximo = 0;
+    double distanciaProxima = double.infinity;
+    List<GeoPoint> novaRota = [];
+    for(int i = 0; i < rota.length; i++){//Encontra o ponto mais proxima na rota gerada, desse modo eu posso retirar o restante que já passou
+      double novaDistancia = Geolocator.distanceBetween(_minhaPosicao.latitude, _minhaPosicao.longitude, rota[i].latitude, rota[i].longitude);
+      if(novaDistancia <= distanciaProxima){
+        distanciaProxima = novaDistancia;
+        valorProximo = i;
+      }
+    }
+    if(valorProximo != 0){
+      if((valorProximo + 1) < rota.length){//aqui é adicionado + 1, pois quando o usuario passar do ponto, este ponto ainda vai continuar mais perto do que o próximo
+        for(int i = (valorProximo+1); i < rota.length; i++){
+          novaRota.add(rota[i]);
+        }
+      }else{
+        if((valorProximo + 1) == rota.length)//Significa que o ponto proximo é o ultimo
+          novaRota.add(rota[valorProximo]);
+        else
+          print("Houve um erro ao calcular o tempo");
+      }
+    }else{
+      novaRota = rota;
+    }
+    distanciaTotal += Geolocator.distanceBetween(_minhaPosicao.latitude, _minhaPosicao.longitude, novaRota[0].latitude, novaRota[0].longitude);//Distância do usuario até o ponto mais proximo, OBS: já foi feito o ajuste no array, descartando os pontos passados
+    for(int i = 0; (i+1) < novaRota.length; i++){
+      distanciaTotal += Geolocator.distanceBetween(novaRota[i].latitude, novaRota[i].longitude, novaRota[i+1].latitude, novaRota[i+1].longitude);
+    }
+    print(distanciaTotal);
+    double velocidade = _minhaPosicao.speed;//Recebe em M/s, porém não funfa em todos os dispositivos, nesse caso aparece como 0
+    if(velocidade < 0.5){//Pessoa está praticamente parada
+      if(distanciaTotal >= 1000){
+        distanciaTotal /= 1000;
+        setState(() {
+          _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} KM";
+        });
+      }else{
+        setState(() {
+          _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} m";
+        });
+      }
+    }else{
+      //velocidade = espaço(m)/tempo(s)
+      double tempo = distanciaTotal/velocidade;
+      if(tempo <= 60){//Segundos
+        setState(() {
+          _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Segundos";
+        });
+      }else if(tempo > 60 && tempo <= 3600){//Minutos
+        tempo /= 60;
+        setState(() {
+          _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Minutos";
+        });
+      }else{//Horas
+        tempo /= 3600;
+        setState(() {
+          _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Horas";
+        });
+      }
+    }
   }
 
   @override
