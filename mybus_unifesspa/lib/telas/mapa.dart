@@ -31,7 +31,7 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
   Color _btnTransporte = Colors.grey.withOpacity(0.7);
   bool _busAtivo = false;
   bool _rotaAtiva = false;
-  bool _appON = true;
+  bool _retornoBusAtivo = false;
 
   //Usuário
   bool permissaoLocal;
@@ -67,23 +67,19 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // user returned to our app
-      _appON = true;
-      if(_busAtivo) showOkAlertDialog(context: context, title: "Atenção", message: "Por motivos de segurança, só compartilhamos sua localização caso esteja no aplicativo! Após 50 segundos fora, seu trnasporte é cancelado automáticamente");
+      if(_retornoBusAtivo) showOkAlertDialog(context: context, title: "Atenção", message: "Por motivos de segurança, só compartilhamos sua localização caso esteja no aplicativo!");
+      if(_retornoBusAtivo){
+        criarTransporte();
+        _retornoBusAtivo = false;
+      }
     } else if (state == AppLifecycleState.inactive) {
       // app is inactive
-      _appON = false;
-      if (!_busAtivo) {
-        Timer(const Duration(seconds: 50), () {
-          //Sistema para parar de enviar a localização caso a pessoa saia do app por mais de 30 min, OBS: para não cancelar ela deve ser ON depois de 30 min da primera vez que saiu!
-          if (!_appON) {
-            print("Cancelando o transporte por motivos de segurança!");
-            deletarTransporte();
-            showOkAlertDialog(context: context, title: "Atenção", message: "Por motivos de segurança, só compartilhamos sua localização caso esteja no aplicativo! Assim cancelamos seu trnasporte...");
-          }
-        });
-      }
     } else if (state == AppLifecycleState.paused) {
       // user is about quit our app temporally
+      if(_busAtivo){
+        deletarTransporte();
+        _retornoBusAtivo = true;
+      }
     } else if (state == AppLifecycleState.detached) {
       // app suspended (not used in iOS)
       if(_busAtivo)
@@ -752,6 +748,7 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
         setState(() {
           apagarRota();//É sem sentido deixar a rota gerada quando já está no transporte, e rota é para encontrar o ponto para pegar o transporte...
           _busAtivo = true;
+          _modoEspera = false;
           _btnTransporte = Colors.green.withOpacity(0.7);
           _btnJanelaTransporteConfirmar = "Salvar";
           _btnJanelaTransporteConfirmarCor = Colors.blue;
