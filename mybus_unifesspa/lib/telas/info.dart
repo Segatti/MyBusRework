@@ -3,8 +3,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 class Info extends StatelessWidget {
 
-  final _url = "https://drive.google.com/file/d/1et3GstKKdGz_ADoXvsatYUR-F3vO9GcI/view?usp=sharing";
-
   _criarLinhaTable(String listaNomes, bool titulo) {
     return TableRow(
       children: listaNomes.split(';').map((name) {
@@ -66,13 +64,13 @@ class Info extends StatelessWidget {
                 _divisor(),
                 _criarLinhaTable("Termo de Uso", true),
                 TableRow(
-                  children: ['https://drive.google.com/file/d/1et3GstKKdGz_ADoXvsatYUR-F3vO9GcI/view?usp=sharing'].map((url) {
+                  children: ['https://drive.google.com/file/d/1Ns2GtxHX-0D3xi7rSZ02SKeGS06aPWMr/view?usp=sharing'].map((url) {
                     return Container(
                       alignment: Alignment.center,
                       child: ElevatedButton.icon(
                         icon: Icon(Icons.open_in_browser),
                         onPressed: () async{
-                          await canLaunch(_url) ? await launch(_url) : throw 'Não conseguiu iniciar $_url';
+                          await canLaunch(url) ? await launch(url) : throw 'Não conseguiu iniciar $url';
                         },
                         label: Text('Abrir documento'),
                       ),
