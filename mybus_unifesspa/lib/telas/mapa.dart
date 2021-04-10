@@ -136,63 +136,68 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
   }
 
   void carregarPontoBus(){
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("PontoBus").snapshots().listen((snapshot) {
-      snapshot.docChanges.forEach((dados) async{
-        if(dados.type == DocumentChangeType.added){
-          //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
-          String _id = dados.doc.id;
-          _dadosPontoBus.putIfAbsent(_id, () => dados.doc.data());
-          Symbol symbol = await mapController.addSymbol(
-            SymbolOptions(
-              textField: _dadosPontoBus[_id]['nome'],
-              textTransform: _id,//Isso é um "atalho", evita muito código de busca para encontrar o dado, não retirar a menos que encontre um método mais otimizado
-              textAnchor: 'top',
-              iconImage: 'bus',
-              iconSize: 1.2,
-              iconAnchor: 'bottom',
-              geometry: LatLng(
-                _dadosPontoBus[_id]['localAtual'].latitude,
-                _dadosPontoBus[_id]['localAtual'].longitude
+    try{
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("PontoBus").snapshots().listen((snapshot) {
+        snapshot.docChanges.forEach((dados) async{
+          if(dados.type == DocumentChangeType.added){
+            //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
+            String _id = dados.doc.id;
+            _dadosPontoBus.putIfAbsent(_id, () => dados.doc.data());
+            Symbol symbol = await mapController.addSymbol(
+              SymbolOptions(
+                textField: _dadosPontoBus[_id]['nome'],
+                textTransform: _id,//Isso é um "atalho", evita muito código de busca para encontrar o dado, não retirar a menos que encontre um método mais otimizado
+                textAnchor: 'top',
+                iconImage: 'bus',
+                iconSize: 1.2,
+                iconAnchor: 'bottom',
+                geometry: LatLng(
+                    _dadosPontoBus[_id]['localAtual'].latitude,
+                    _dadosPontoBus[_id]['localAtual'].longitude
+                ),
               ),
-            ),
-          );
-          _symbolPontoBus.putIfAbsent(_id, () => symbol);
-          print("Dado adicionado! ${_dadosPontoBus[_id]}");
-        }else if(dados.type == DocumentChangeType.modified){
-          //Atualizado no firebase
-          String _id = dados.doc.id;
-          _dadosPontoBus[_id] = dados.doc.data();
-          await mapController.updateSymbol(
-            _symbolPontoBus[_id],
-            SymbolOptions(
-              textField: _dadosPontoBus[_id]['nome']
-            )
-          );
-          print("Dado atualizado! ${_dadosPontoBus[_id]}");
-        }else if(dados.type == DocumentChangeType.removed){
-          //Removido do firebase
-          String _id = dados.doc.id;
-          if(_symbolSelecionado == _symbolPontoBus[_id]) _symbolSelecionado = null; //Caso eu esteja deletando o symbol selecionado
-          await mapController.removeSymbol(_symbolPontoBus[_id]);
-          _dadosPontoBus.remove(_id);
-          _symbolPontoBus.remove(_id);
-          print("Dado removido! ${dados.doc.data()}");
-        }
+            );
+            _symbolPontoBus.putIfAbsent(_id, () => symbol);
+            print("Dado adicionado! ${_dadosPontoBus[_id]}");
+          }else if(dados.type == DocumentChangeType.modified){
+            //Atualizado no firebase
+            String _id = dados.doc.id;
+            _dadosPontoBus[_id] = dados.doc.data();
+            await mapController.updateSymbol(
+                _symbolPontoBus[_id],
+                SymbolOptions(
+                    textField: _dadosPontoBus[_id]['nome']
+                )
+            );
+            print("Dado atualizado! ${_dadosPontoBus[_id]}");
+          }else if(dados.type == DocumentChangeType.removed){
+            //Removido do firebase
+            String _id = dados.doc.id;
+            if(_symbolSelecionado == _symbolPontoBus[_id]) _symbolSelecionado = null; //Caso eu esteja deletando o symbol selecionado
+            await mapController.removeSymbol(_symbolPontoBus[_id]);
+            _dadosPontoBus.remove(_id);
+            _symbolPontoBus.remove(_id);
+            print("Dado removido! ${dados.doc.data()}");
+          }
+        });
       });
-    });
+    }catch(error){
+      print(error);
+    }
   }
 
   void carregarTransporte(){
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("Transporte").snapshots().listen((snapshot) {
-      snapshot.docChanges.forEach((dados) async{
-        if(dados.type == DocumentChangeType.added){
-          if((Timestamp.now().seconds - dados.doc.data()['ultimaAtualizacao'].seconds) <= 60){
-            //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
-            String _id = dados.doc.id;
-            _dadosTransporte.putIfAbsent(_id, () => dados.doc.data());
-            /*Atenção - Muito importante
+    try{
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("Transporte").snapshots().listen((snapshot) {
+        snapshot.docChanges.forEach((dados) async{
+          if(dados.type == DocumentChangeType.added){
+            if((Timestamp.now().seconds - dados.doc.data()['ultimaAtualizacao'].seconds) <= 600){
+              //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
+              String _id = dados.doc.id;
+              _dadosTransporte.putIfAbsent(_id, () => dados.doc.data());
+              /*Atenção - Muito importante
           * Os symbols que serve para representar o transporte devem ser "pré carregados"
           * antes de pode utilizar, isso porque o symbol quando adicionado a primeira vez
           * já se torna a posição PERMANENTE, ou seja, não tem como mover de local
@@ -201,84 +206,95 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
           * invisivel o symbol que fica permanente e só quando é atualizado o transporte(duplicata),
           * é quando vai aparecer no mapa, espero que tenha entendido, futuro programador kkkkk.
           * */
-            Symbol symbol = await mapController.addSymbol(
-              SymbolOptions(
-                  geometry: LatLng(
-                      _dadosTransporte[_id]['localAtual'].latitude,
-                      _dadosTransporte[_id]['localAtual'].longitude
-                  )
-              ),
+              Symbol symbol = await mapController.addSymbol(
+                SymbolOptions(
+                    geometry: LatLng(
+                        _dadosTransporte[_id]['localAtual'].latitude,
+                        _dadosTransporte[_id]['localAtual'].longitude
+                    )
+                ),
+              );
+              _symbolTransporte.putIfAbsent(_id, () => symbol);
+              print("Dado adicionado! ${_dadosTransporte[_id]}");
+            }else{//Tenho que deletar para não ficar dados antigos e para não bugar o sistema caso tente atualizar(digamos que tente atualizar sem ter o symbol no mapa)
+              String _id = dados.doc.id;
+              FirebaseFirestore firebase = FirebaseFirestore.instance;
+              await firebase.collection('Transporte').doc(_id).delete();
+            }
+          }else if(dados.type == DocumentChangeType.modified){
+            //Atualizado no firebase
+            String _id = dados.doc.id;
+            _dadosTransporte[_id] = dados.doc.data();
+            await mapController.updateSymbol(
+                _symbolTransporte[_id],
+                SymbolOptions(
+                    textField: _dadosTransporte[_id]['nome'],
+                    textTransform: _id,//Isso é um "atalho", evita muito código de busca para encontrar o dado, não retirar a menos que encontre um método mais otimizado
+                    textAnchor: 'top',
+                    iconImage: getIcone(_dadosTransporte[_id]['tipo']),
+                    iconSize: 1.2,
+                    iconAnchor: 'bottom',
+                    geometry: LatLng(
+                        _dadosTransporte[_id]['localAtual'].latitude,
+                        _dadosTransporte[_id]['localAtual'].longitude
+                    )
+                )
             );
-            _symbolTransporte.putIfAbsent(_id, () => symbol);
-            print("Dado adicionado! ${_dadosTransporte[_id]}");
+            print("Dado atualizado! ${_dadosTransporte[_id]}");
+          }else if(dados.type == DocumentChangeType.removed){
+            //Removido do firebase
+            String _id = dados.doc.id;
+            if(_symbolSelecionado == _symbolTransporte[_id]) _symbolSelecionado = null; //Caso eu esteja deletando o symbol selecionado
+            await mapController.removeSymbol(_symbolTransporte[_id]);
+            _dadosTransporte.remove(_id);
+            _symbolTransporte.remove(_id);
+            print("Dado removido! ${dados.doc.data()}");
           }
-        }else if(dados.type == DocumentChangeType.modified){
-          //Atualizado no firebase
-          String _id = dados.doc.id;
-          _dadosTransporte[_id] = dados.doc.data();
-          await mapController.updateSymbol(
-              _symbolTransporte[_id],
-              SymbolOptions(
-                  textField: _dadosTransporte[_id]['nome'],
-                  textTransform: _id,//Isso é um "atalho", evita muito código de busca para encontrar o dado, não retirar a menos que encontre um método mais otimizado
-                  textAnchor: 'top',
-                  iconImage: getIcone(_dadosTransporte[_id]['tipo']),
-                  iconSize: 1.2,
-                  iconAnchor: 'bottom',
-                  geometry: LatLng(
-                      _dadosTransporte[_id]['localAtual'].latitude,
-                      _dadosTransporte[_id]['localAtual'].longitude
-                  )
-              )
-          );
-          print("Dado atualizado! ${_dadosTransporte[_id]}");
-        }else if(dados.type == DocumentChangeType.removed){
-          //Removido do firebase
-          String _id = dados.doc.id;
-          if(_symbolSelecionado == _symbolTransporte[_id]) _symbolSelecionado = null; //Caso eu esteja deletando o symbol selecionado
-          await mapController.removeSymbol(_symbolTransporte[_id]);
-          _dadosTransporte.remove(_id);
-          _symbolTransporte.remove(_id);
-          print("Dado removido! ${dados.doc.data()}");
-        }
+        });
       });
-    });
+    }catch(error){
+      print(error);
+    }
   }
 
   void getPermissaoLocalizacao() async{
-    bool localAtivo;
-    LocationPermission permissao;
+    try{
+      bool localAtivo;
+      LocationPermission permissao;
 
-    localAtivo = await Geolocator.isLocationServiceEnabled();
-    if(!localAtivo){
-      print("GPS Desativado!");
-      showOkAlertDialog(context: context, title: "Atenção", message: "Seu GPS está desligado");
-    }
-
-    permissao = await Geolocator.checkPermission();
-    if(permissao == LocationPermission.denied){
-
-      permissao = await Geolocator.requestPermission();
-      if(permissao == LocationPermission.deniedForever){
-        print("Permissão Negada Permanentemente! O usuário tem que ir nas configurações para alterar...");
-        permissaoLocal = false;
-        showOkAlertDialog(context: context, title: "Atenção", message: "O Aplicativo precisa da permissão para funcionar corretamente, por favor entre nas configurações e dê a permissão!");
+      localAtivo = await Geolocator.isLocationServiceEnabled();
+      if(!localAtivo){
+        print("GPS Desativado!");
+        showOkAlertDialog(context: context, title: "Atenção", message: "Seu GPS está desligado");
       }
 
+      permissao = await Geolocator.checkPermission();
       if(permissao == LocationPermission.denied){
-        print("Permissão Negada!");
-        permissaoLocal = false;
-        showOkAlertDialog(context: context, title: "Atenção", message: "O Aplicativo precisa da permissão para funcionar corretamente, por favor entre nas configurações e dê a permissão!");
-      }
 
-    }else if(permissao == LocationPermission.always){
-      print("Permissão para utilizar em segundo plano!");
-      permissaoLocal = true;
-      minhaLocalizacao(true);
-    }else if(permissao == LocationPermission.whileInUse){
-      print("Permissão para utilizar o GPS só quand o App está aberto!");
-      permissaoLocal = true;
-      minhaLocalizacao(true);
+        permissao = await Geolocator.requestPermission();
+        if(permissao == LocationPermission.deniedForever){
+          print("Permissão Negada Permanentemente! O usuário tem que ir nas configurações para alterar...");
+          permissaoLocal = false;
+          showOkAlertDialog(context: context, title: "Atenção", message: "O Aplicativo precisa da permissão para funcionar corretamente, por favor entre nas configurações e dê a permissão!");
+        }
+
+        if(permissao == LocationPermission.denied){
+          print("Permissão Negada!");
+          permissaoLocal = false;
+          showOkAlertDialog(context: context, title: "Atenção", message: "O Aplicativo precisa da permissão para funcionar corretamente, por favor entre nas configurações e dê a permissão!");
+        }
+
+      }else if(permissao == LocationPermission.always){
+        print("Permissão para utilizar em segundo plano!");
+        permissaoLocal = true;
+        minhaLocalizacao(true);
+      }else if(permissao == LocationPermission.whileInUse){
+        print("Permissão para utilizar o GPS só quand o App está aberto!");
+        permissaoLocal = true;
+        minhaLocalizacao(true);
+      }
+    }catch(error){
+      print(error);
     }
   }
 
@@ -731,92 +747,139 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
   }
 
   void criarTransporte() {
-    String _id = FirebaseAuth.instance.currentUser.uid;
-    minhaLocalizacao(false);
-    String _idBusProximo = symbolMaisProximo(_dadosTransporte);
-    GeoPoint posicaoBus = (_idBusProximo != "") ? _dadosTransporte[_idBusProximo]['localAtual'] : GeoPoint(0, 0);//0,0 fica no meio do mar, não vai ter problema
-    if(!symbolDentroRaio(posicaoBus, 10)){//Só cria o transporte caso não tenha nenhum a 10m, assim evita várias pessoas compartilhar o mesmo transporte
-      Transporte transporte = Transporte(getNome(_tipoSelecionado), _tipoSelecionado, _destinoTransporte.text, GeoPoint(_position.latitude, _position.longitude));
-      FirebaseFirestore firebase = FirebaseFirestore.instance;
-      firebase.collection("Transporte").doc(_id).set(transporte.toMap()).then((value){
-        print("Transporte Criado!");
-        final snackBar = SnackBar(
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-              "Transporte criado!"
-          ),
-        );
-        setState(() {
-          apagarRota();//É sem sentido deixar a rota gerada quando já está no transporte, e rota é para encontrar o ponto para pegar o transporte...
-          _busAtivo = true;
-          _btnTransporte = Colors.green.withOpacity(0.7);
-          _btnJanelaTransporteConfirmar = "Salvar";
-          _btnJanelaTransporteConfirmarCor = Colors.blue;
-        });
-        ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      }).catchError((error){
-        print(error);
-        final snackBar = SnackBar(
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          content: Text(
-              "Ops... Houve um erro!"
-          ),
-        );
-        ScaffoldMessenger.of(context).showSnackBar(snackBar);
-      });
-    }else{//Entra em modo de espera, até sair
-      print("Transporte entrou em modo de espera!");
-      final snackBar = SnackBar(
-        backgroundColor: Colors.amber,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Você entrou em modo de espera!"
-        ),
-      );
-      setState(() {
-        _modoEspera = true;//Quando distanciar irá compartilhar automaticamente, quando ficar false
-        _busAtivo = true;
-        _btnTransporte = Colors.amber.withOpacity(0.7);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }
-  }
-
-  void atualizarTransporte() {
-    String _id = FirebaseAuth.instance.currentUser.uid;
-    minhaLocalizacao(false);
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("Transporte").doc(_id).update({
-      "localAtual":GeoPoint(_position.latitude, _position.longitude),
-      "ultimaAtualizacao":DateTime.now()
-    }).then((value){
-      print("Posição do transporte atualizado!");
-    }).catchError((error){
-      print(error);
-    });
-  }
-
-  void deletarTransporte() {
-    if(!_modoEspera){
+    try{
       String _id = FirebaseAuth.instance.currentUser.uid;
-      FirebaseFirestore firebase = FirebaseFirestore.instance;
-      firebase.collection("Transporte").doc(_id).delete().then((value){
-        print("Transporte Cancelado!");
+      minhaLocalizacao(false);
+      String _idBusProximo = symbolMaisProximo(_dadosTransporte);
+      GeoPoint posicaoBus = (_idBusProximo != "") ? _dadosTransporte[_idBusProximo]['localAtual'] : GeoPoint(0, 0);//0,0 fica no meio do mar, não vai ter problema
+      if(!symbolDentroRaio(posicaoBus, 10)){//Só cria o transporte caso não tenha nenhum a 10m, assim evita várias pessoas compartilhar o mesmo transporte
+        Transporte transporte = Transporte(getNome(_tipoSelecionado), _tipoSelecionado, _destinoTransporte.text, GeoPoint(_position.latitude, _position.longitude));
+        FirebaseFirestore firebase = FirebaseFirestore.instance;
+        firebase.collection("Transporte").doc(_id).set(transporte.toMap()).then((value){
+          print("Transporte Criado!");
+          final snackBar = SnackBar(
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+                "Transporte criado!"
+            ),
+          );
+          setState(() {
+            apagarRota();//É sem sentido deixar a rota gerada quando já está no transporte, e rota é para encontrar o ponto para pegar o transporte...
+            _busAtivo = true;
+            _btnTransporte = Colors.green.withOpacity(0.7);
+            _btnJanelaTransporteConfirmar = "Salvar";
+            _btnJanelaTransporteConfirmarCor = Colors.blue;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(snackBar);
+        }).catchError((error){
+          print(error);
+          final snackBar = SnackBar(
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+                "Ops... Houve um erro!"
+            ),
+          );
+          ScaffoldMessenger.of(context).showSnackBar(snackBar);
+        });
+      }else{//Entra em modo de espera, até sair
+        print("Transporte entrou em modo de espera!");
         final snackBar = SnackBar(
           backgroundColor: Colors.amber,
           behavior: SnackBarBehavior.floating,
           content: Text(
-              "Transporte cancelado!"
+              "Você entrou em modo de espera!"
           ),
         );
         setState(() {
-          _busAtivo = false;
-          _btnTransporte = Colors.grey.withOpacity(0.7);
-          _btnJanelaTransporteConfirmar = "Criar";
-          _btnJanelaTransporteConfirmarCor = Colors.green;
+          _modoEspera = true;//Quando distanciar irá compartilhar automaticamente, quando ficar false
+          _busAtivo = true;
+          _btnTransporte = Colors.amber.withOpacity(0.7);
         });
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }
+    }catch(error){
+      print(error);
+    }
+  }
+
+  void atualizarTransporte() {
+    try{
+      String _id = FirebaseAuth.instance.currentUser.uid;
+      minhaLocalizacao(false);
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("Transporte").doc(_id).update({
+        "localAtual":GeoPoint(_position.latitude, _position.longitude),
+        "ultimaAtualizacao":DateTime.now()
+      }).then((value){
+        print("Posição do transporte atualizado!");
+      }).catchError((error){
+        print(error);
+      });
+    }catch(error){
+      print(error);
+    }
+  }
+
+  void deletarTransporte() {
+    try{
+      if(!_modoEspera){
+        String _id = FirebaseAuth.instance.currentUser.uid;
+        FirebaseFirestore firebase = FirebaseFirestore.instance;
+        firebase.collection("Transporte").doc(_id).delete().then((value){
+          print("Transporte Cancelado!");
+          final snackBar = SnackBar(
+            backgroundColor: Colors.amber,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+                "Transporte cancelado!"
+            ),
+          );
+          setState(() {
+            _busAtivo = false;
+            _btnTransporte = Colors.grey.withOpacity(0.7);
+            _btnJanelaTransporteConfirmar = "Criar";
+            _btnJanelaTransporteConfirmarCor = Colors.green;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(snackBar);
+        }).catchError((error){
+          print(error);
+          final snackBar = SnackBar(
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            content: Text(
+                "Ops... Houve um erro!"
+            ),
+          );
+          ScaffoldMessenger.of(context).showSnackBar(snackBar);
+        });
+      }else{
+        setState(() {
+          _busAtivo = false;
+          _modoEspera = false;
+          _btnTransporte = Colors.grey.withOpacity(0.7);
+        });
+      }
+    }catch(error){
+      print(error);
+    }
+  }
+
+  void criarPontoBus() {
+    try{
+      minhaLocalizacao(false);
+      PontoBus pontoBus = PontoBus(_nomePontoBus.text, _descricaoPontoBus.text, GeoPoint(_position.latitude, _position.longitude));
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("PontoBus").add(pontoBus.toMap()).then((value){
+        print("Ponto Criado!");
+        final snackBar = SnackBar(
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ponto criado!"
+          ),
+        );
         ScaffoldMessenger.of(context).showSnackBar(snackBar);
       }).catchError((error){
         print(error);
@@ -829,118 +892,105 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
         );
         ScaffoldMessenger.of(context).showSnackBar(snackBar);
       });
-    }else{
-      setState(() {
-        _busAtivo = false;
-        _modoEspera = false;
-        _btnTransporte = Colors.grey.withOpacity(0.7);
-      });
+    }catch(error){
+      print(error);
     }
   }
 
-  void criarPontoBus() {
-    minhaLocalizacao(false);
-    PontoBus pontoBus = PontoBus(_nomePontoBus.text, _descricaoPontoBus.text, GeoPoint(_position.latitude, _position.longitude));
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("PontoBus").add(pontoBus.toMap()).then((value){
-      print("Ponto Criado!");
-      final snackBar = SnackBar(
-        backgroundColor: Colors.green,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ponto criado!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }).catchError((error){
-      print(error);
-      final snackBar = SnackBar(
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ops... Houve um erro!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    });
-  }
-
   void atualizarPontoBus(String _id, nome, descricao) {
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("PontoBus").doc(_id).update({
-      "nome":nome,
-      "descricao":descricao,
-      "ultimaAtualizacao":DateTime.now()
-    }).then((value){
-      print("Ponto Atualizado!");
-      final snackBar = SnackBar(
-        backgroundColor: Colors.blue,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ponto Atualizado!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }).catchError((error){
+    try{
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("PontoBus").doc(_id).update({
+        "nome":nome,
+        "descricao":descricao,
+        "ultimaAtualizacao":DateTime.now()
+      }).then((value){
+        print("Ponto Atualizado!");
+        final snackBar = SnackBar(
+          backgroundColor: Colors.blue,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ponto Atualizado!"
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }).catchError((error){
+        print(error);
+        final snackBar = SnackBar(
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ops... Houve um erro!"
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    }catch(error){
       print(error);
-      final snackBar = SnackBar(
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ops... Houve um erro!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    });
+    }
   }
 
   void deletarPontoBus(String _id) {
-    FirebaseFirestore firebase = FirebaseFirestore.instance;
-    firebase.collection("PontoBus").doc(_id).delete().then((value){
-      print("Ponto Cancelado!");
-      final snackBar = SnackBar(
-        backgroundColor: Colors.yellow,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ponto deletado!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    }).catchError((error){
+    try{
+      FirebaseFirestore firebase = FirebaseFirestore.instance;
+      firebase.collection("PontoBus").doc(_id).delete().then((value){
+        print("Ponto Cancelado!");
+        final snackBar = SnackBar(
+          backgroundColor: Colors.yellow,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ponto deletado!"
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      }).catchError((error){
+        print(error);
+        final snackBar = SnackBar(
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          content: Text(
+              "Ops... Houve um erro!"
+          ),
+        );
+        ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      });
+    }catch(error){
       print(error);
-      final snackBar = SnackBar(
-        backgroundColor: Colors.red,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-            "Ops... Houve um erro!"
-        ),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
-    });
+    }
   }
 
   String symbolMaisProximo(Map<String, dynamic> listaDados) {
-    minhaLocalizacao(false);
-    Position minhaPosicao = _position;
-    double distancia = double.infinity;
-    String id = "";
-    listaDados.forEach((_id, dado) {
-      double novaDistacia = Geolocator.distanceBetween(minhaPosicao.latitude, minhaPosicao.longitude, dado['localAtual'].latitude, dado['localAtual'].longitude);
-      if(distancia >= novaDistacia){
-        distancia = novaDistacia;
-        id = _id;
-      }
-    });
-    return id;
+    try{
+      minhaLocalizacao(false);
+      Position minhaPosicao = _position;
+      double distancia = double.infinity;
+      String id = "";
+      listaDados.forEach((_id, dado) {
+        double novaDistacia = Geolocator.distanceBetween(minhaPosicao.latitude, minhaPosicao.longitude, dado['localAtual'].latitude, dado['localAtual'].longitude);
+        if(distancia >= novaDistacia){
+          distancia = novaDistacia;
+          id = _id;
+        }
+      });
+      return id;
+    }catch(error){
+      print(error);
+      return "";
+    }
   }
 
   bool symbolDentroRaio(GeoPoint symbolPosicao, double raio){
-    minhaLocalizacao(false);
-    Position minhaPosicao = _position;
-    double distanciaSymbol = Geolocator.distanceBetween(minhaPosicao.latitude, minhaPosicao.longitude, symbolPosicao.latitude, symbolPosicao.longitude);
-    if(distanciaSymbol <= raio){
-      return true;
-    }else{
+    try{
+      minhaLocalizacao(false);
+      Position minhaPosicao = _position;
+      double distanciaSymbol = Geolocator.distanceBetween(minhaPosicao.latitude, minhaPosicao.longitude, symbolPosicao.latitude, symbolPosicao.longitude);
+      if(distanciaSymbol <= raio){
+        return true;
+      }else{
+        return false;
+      }
+    }catch(error){
+      print(error);
       return false;
     }
   }
@@ -1053,67 +1103,71 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
   }
 
   void calculaTimePonto(List<GeoPoint> rota){
-    minhaLocalizacao(false);
-    Position _minhaPosicao = _position;
-    double distanciaTotal = 0;
-    int valorProximo = 0;
-    double distanciaProxima = double.infinity;
-    List<GeoPoint> novaRota = [];
-    for(int i = 0; i < rota.length; i++){//Encontra o ponto mais proxima na rota gerada, desse modo eu posso retirar o restante que já passou
-      double novaDistancia = Geolocator.distanceBetween(_minhaPosicao.latitude, _minhaPosicao.longitude, rota[i].latitude, rota[i].longitude);
-      if(novaDistancia <= distanciaProxima){
-        distanciaProxima = novaDistancia;
-        valorProximo = i;
+    try{
+      minhaLocalizacao(false);
+      Position _minhaPosicao = _position;
+      double distanciaTotal = 0;
+      int valorProximo = 0;
+      double distanciaProxima = double.infinity;
+      List<GeoPoint> novaRota = [];
+      for(int i = 0; i < rota.length; i++){//Encontra o ponto mais proxima na rota gerada, desse modo eu posso retirar o restante que já passou
+        double novaDistancia = Geolocator.distanceBetween(_minhaPosicao.latitude, _minhaPosicao.longitude, rota[i].latitude, rota[i].longitude);
+        if(novaDistancia <= distanciaProxima){
+          distanciaProxima = novaDistancia;
+          valorProximo = i;
+        }
       }
-    }
-    if(valorProximo != 0){
-      if((valorProximo + 1) < rota.length){//aqui é adicionado + 1, pois quando o usuario passar do ponto, este ponto ainda vai continuar mais perto do que o próximo
-        for(int i = (valorProximo+1); i < rota.length; i++){
-          novaRota.add(rota[i]);
+      if(valorProximo != 0){
+        if((valorProximo + 1) < rota.length){//aqui é adicionado + 1, pois quando o usuario passar do ponto, este ponto ainda vai continuar mais perto do que o próximo
+          for(int i = (valorProximo+1); i < rota.length; i++){
+            novaRota.add(rota[i]);
+          }
+        }else{
+          if((valorProximo + 1) == rota.length)//Significa que o ponto proximo é o ultimo
+            novaRota.add(rota[valorProximo]);
+          else
+            print("Houve um erro ao calcular o tempo");
         }
       }else{
-        if((valorProximo + 1) == rota.length)//Significa que o ponto proximo é o ultimo
-          novaRota.add(rota[valorProximo]);
-        else
-          print("Houve um erro ao calcular o tempo");
+        novaRota = rota;
       }
-    }else{
-      novaRota = rota;
-    }
-    distanciaTotal += Geolocator.distanceBetween(_minhaPosicao.latitude, _minhaPosicao.longitude, novaRota[0].latitude, novaRota[0].longitude);//Distância do usuario até o ponto mais proximo, OBS: já foi feito o ajuste no array, descartando os pontos passados
-    for(int i = 0; (i+1) < novaRota.length; i++){
-      distanciaTotal += Geolocator.distanceBetween(novaRota[i].latitude, novaRota[i].longitude, novaRota[i+1].latitude, novaRota[i+1].longitude);
-    }
-    double velocidade = _minhaPosicao.speed;//Recebe em M/s, porém não funfa em todos os dispositivos, nesse caso aparece como 0
-    if(velocidade < 0.3){//Pessoa está praticamente parada
-      if(distanciaTotal >= 1000){
-        distanciaTotal /= 1000;
-        setState(() {
-          _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} KM";
-        });
+      distanciaTotal += Geolocator.distanceBetween(_minhaPosicao.latitude, _minhaPosicao.longitude, novaRota[0].latitude, novaRota[0].longitude);//Distância do usuario até o ponto mais proximo, OBS: já foi feito o ajuste no array, descartando os pontos passados
+      for(int i = 0; (i+1) < novaRota.length; i++){
+        distanciaTotal += Geolocator.distanceBetween(novaRota[i].latitude, novaRota[i].longitude, novaRota[i+1].latitude, novaRota[i+1].longitude);
+      }
+      double velocidade = _minhaPosicao.speed;//Recebe em M/s, porém não funfa em todos os dispositivos, nesse caso aparece como 0
+      if(velocidade < 0.3){//Pessoa está praticamente parada
+        if(distanciaTotal >= 1000){
+          distanciaTotal /= 1000;
+          setState(() {
+            _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} KM";
+          });
+        }else{
+          setState(() {
+            _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} metros";
+          });
+        }
       }else{
-        setState(() {
-          _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} metros";
-        });
+        //velocidade = espaço(m)/tempo(s)
+        double tempo = distanciaTotal/velocidade;
+        if(tempo <= 60){//Segundos
+          setState(() {
+            _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Segundos";
+          });
+        }else if(tempo > 60 && tempo <= 3600){//Minutos
+          tempo /= 60;
+          setState(() {
+            _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Minutos";
+          });
+        }else{//Horas
+          tempo /= 3600;
+          setState(() {
+            _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Horas";
+          });
+        }
       }
-    }else{
-      //velocidade = espaço(m)/tempo(s)
-      double tempo = distanciaTotal/velocidade;
-      if(tempo <= 60){//Segundos
-        setState(() {
-          _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Segundos";
-        });
-      }else if(tempo > 60 && tempo <= 3600){//Minutos
-        tempo /= 60;
-        setState(() {
-          _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Minutos";
-        });
-      }else{//Horas
-        tempo /= 3600;
-        setState(() {
-          _txtTimeBus = "Eu → Ponto: ${tempo.toStringAsFixed(1)} Horas";
-        });
-      }
+    }catch(error){
+      print(error);
     }
   }
 
