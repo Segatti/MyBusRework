@@ -319,11 +319,15 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
   }
 
   void centralizarPosicao(){
-    mapController.moveCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: LatLng(_position.latitude, _position.longitude), zoom: 13)
-      )
-    );
+    try{
+      mapController.moveCamera(
+          CameraUpdate.newCameraPosition(
+              CameraPosition(target: LatLng(_position.latitude, _position.longitude), zoom: 13)
+          )
+      );
+    }catch(error){
+      print(error);
+    }
   }
 
   void janelaTransporte(){
