@@ -16,7 +16,7 @@ class Mapa extends StatefulWidget {
   _MapaState createState() => _MapaState();
 }
 
-class _MapaState extends State<Mapa> {
+class _MapaState extends State<Mapa> with WidgetsBindingObserver{
 
   //Mapa
   MapboxMapController mapController;
@@ -31,6 +31,7 @@ class _MapaState extends State<Mapa> {
   Color _btnTransporte = Colors.grey.withOpacity(0.7);
   bool _busAtivo = false;
   bool _rotaAtiva = false;
+  bool _appON = true;
 
   //Usuário
   bool permissaoLocal;
@@ -58,7 +59,41 @@ class _MapaState extends State<Mapa> {
   @override
   void initState(){
     getPermissaoLocalizacao();
+    WidgetsBinding.instance.addObserver(this);
     super.initState();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // user returned to our app
+      _appON = true;
+    } else if (state == AppLifecycleState.inactive) {
+      // app is inactive
+      _appON = false;
+      if (!_busAtivo) {
+        Timer(const Duration(minutes: 30), () {
+          //Sistema para parar de enviar a localização caso a pessoa saia do app por mais de 30 min, OBS: para não cancelar ela deve ser ON depois de 30 min da primera vez que saiu!
+          if (!_appON) {
+            print("Cancelando o transporte por motivos de segurança!");
+            deletarTransporte();
+          }
+        });
+      }
+    } else if (state == AppLifecycleState.paused) {
+      // user is about quit our app temporally
+    } else if (state == AppLifecycleState.detached) {
+      // app suspended (not used in iOS)
+      if(_busAtivo)
+        deletarTransporte();
+    }
+    super.didChangeAppLifecycleState(state);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   void _onMapCreated(MapboxMapController controller) {
@@ -153,10 +188,11 @@ class _MapaState extends State<Mapa> {
     firebase.collection("Transporte").snapshots().listen((snapshot) {
       snapshot.docChanges.forEach((dados) async{
         if(dados.type == DocumentChangeType.added){
-          //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
-          String _id = dados.doc.id;
-          _dadosTransporte.putIfAbsent(_id, () => dados.doc.data());
-          /*Atenção - Muito importante
+          if((Timestamp.now().seconds - dados.doc.data()['ultimaAtualizacao'].seconds) <= 60){
+            //Adicionado ao firebase(Quando abre a requisição, vai ser carregado os dados como se tivessem sido adicionados ao firebase)
+            String _id = dados.doc.id;
+            _dadosTransporte.putIfAbsent(_id, () => dados.doc.data());
+            /*Atenção - Muito importante
           * Os symbols que serve para representar o transporte devem ser "pré carregados"
           * antes de pode utilizar, isso porque o symbol quando adicionado a primeira vez
           * já se torna a posição PERMANENTE, ou seja, não tem como mover de local
@@ -165,16 +201,17 @@ class _MapaState extends State<Mapa> {
           * invisivel o symbol que fica permanente e só quando é atualizado o transporte(duplicata),
           * é quando vai aparecer no mapa, espero que tenha entendido, futuro programador kkkkk.
           * */
-          Symbol symbol = await mapController.addSymbol(
-            SymbolOptions(
-                geometry: LatLng(
-                    _dadosTransporte[_id]['localAtual'].latitude,
-                    _dadosTransporte[_id]['localAtual'].longitude
-                )
-            ),
-          );
-          _symbolTransporte.putIfAbsent(_id, () => symbol);
-          print("Dado adicionado! ${_dadosTransporte[_id]}");
+            Symbol symbol = await mapController.addSymbol(
+              SymbolOptions(
+                  geometry: LatLng(
+                      _dadosTransporte[_id]['localAtual'].latitude,
+                      _dadosTransporte[_id]['localAtual'].longitude
+                  )
+              ),
+            );
+            _symbolTransporte.putIfAbsent(_id, () => symbol);
+            print("Dado adicionado! ${_dadosTransporte[_id]}");
+          }
         }else if(dados.type == DocumentChangeType.modified){
           //Atualizado no firebase
           String _id = dados.doc.id;
