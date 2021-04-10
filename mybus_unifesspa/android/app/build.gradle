@@ -61,6 +61,8 @@ android {
             signingConfig signingConfigs.release
         }
     }
+
+    ndkVersion "22.1.7171670"
 }
 
 flutter {
@@ -75,3 +77,5 @@ dependencies {
     implementation platform('com.google.firebase:firebase-bom:26.8.0')
     implementation 'com.google.firebase:firebase-analytics'
 }
+
+android.buildTypes.release.ndk.debugSymbolLevel = 'FULL'
