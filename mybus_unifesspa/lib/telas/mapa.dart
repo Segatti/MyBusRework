@@ -68,15 +68,17 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
     if (state == AppLifecycleState.resumed) {
       // user returned to our app
       _appON = true;
+      if(_busAtivo) showOkAlertDialog(context: context, title: "Atenção", message: "Por motivos de segurança, só compartilhamos sua localização caso esteja no aplicativo! Após 50 segundos fora, seu trnasporte é cancelado automáticamente");
     } else if (state == AppLifecycleState.inactive) {
       // app is inactive
       _appON = false;
       if (!_busAtivo) {
-        Timer(const Duration(minutes: 30), () {
+        Timer(const Duration(seconds: 50), () {
           //Sistema para parar de enviar a localização caso a pessoa saia do app por mais de 30 min, OBS: para não cancelar ela deve ser ON depois de 30 min da primera vez que saiu!
           if (!_appON) {
             print("Cancelando o transporte por motivos de segurança!");
             deletarTransporte();
+            showOkAlertDialog(context: context, title: "Atenção", message: "Por motivos de segurança, só compartilhamos sua localização caso esteja no aplicativo! Assim cancelamos seu trnasporte...");
           }
         });
       }
