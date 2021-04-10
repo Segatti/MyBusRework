@@ -246,34 +246,38 @@ class _MapaState extends State<Mapa> {
   }
 
   void minhaLocalizacao(bool listen) async{
-    if(listen){
-      StreamSubscription<Position> positionStream = Geolocator.getPositionStream(
-        desiredAccuracy: LocationAccuracy.bestForNavigation,
-        intervalDuration: Duration(seconds: 5)//Tem que lembrar que o banco de dados é gratuito, ou seja, tem limite de requisição, por isso tem que restringir!
-      ).listen((Position posicao) {
-        if(_position == null){//teoricamente, só vai entrar na hora que abrir
-          setState(() {
-            _position = posicao;
-            mapboxLocalizacao = true;
-          });
-          if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
-          if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
-          if(_rotaAtiva && _rotaGerada != []) calculaTimePonto(_rotaGerada);//Atualiza o tempo até a parada de ônibus
-        }else{
-          _position = posicao;
-          if(_position == null){//Caso ocorra uma falha, desativa a localização
+    try{
+      if(listen){
+        StreamSubscription<Position> positionStream = Geolocator.getPositionStream(
+            desiredAccuracy: LocationAccuracy.bestForNavigation,
+            intervalDuration: Duration(seconds: 5)//Tem que lembrar que o banco de dados é gratuito, ou seja, tem limite de requisição, por isso tem que restringir!
+        ).listen((Position posicao) {
+          if(_position == null){//teoricamente, só vai entrar na hora que abrir
             setState(() {
-              mapboxLocalizacao = false;
+              _position = posicao;
+              mapboxLocalizacao = true;
             });
+            if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
+            if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
+            if(_rotaAtiva && _rotaGerada != []) calculaTimePonto(_rotaGerada);//Atualiza o tempo até a parada de ônibus
+          }else{
+            _position = posicao;
+            if(_position == null){//Caso ocorra uma falha, desativa a localização
+              setState(() {
+                mapboxLocalizacao = false;
+              });
+            }
+            if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
+            if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
+            if(_rotaAtiva && _rotaGerada != []) calculaTimePonto(_rotaGerada);//Atualiza o tempo até a parada de ônibus
           }
-          if(_busAtivo && _position != null && !_modoEspera) atualizarTransporte();//Caso esteja compartilhando a localização
-          if(_busAtivo && _position != null && _modoEspera) criarTransporte();//Tentando sair do modo de espera
-          if(_rotaAtiva && _rotaGerada != []) calculaTimePonto(_rotaGerada);//Atualiza o tempo até a parada de ônibus
-        }
-      });
-      print(positionStream);
-    }else{
-      _position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.bestForNavigation);
+        });
+        print(positionStream);
+      }else{
+        _position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.bestForNavigation);
+      }
+    }catch(error){
+      print(error);
     }
   }
 
@@ -901,94 +905,98 @@ class _MapaState extends State<Mapa> {
   }
 
   void buscarPontoBus() async{
-    minhaLocalizacao(false);
-    GeoPoint minhaPosicao = GeoPoint(_position.latitude, _position.longitude);
-    String idPontoBus = symbolMaisProximo(_dadosPontoBus);
-    if(idPontoBus != ""){//Ou seja, encontrou uma ponto de bus
-      GeoPoint symbolPosicao = _dadosPontoBus[idPontoBus]['localAtual'];
-      //https://docs.mapbox.com/api/navigation/directions/#retrieve-directions
-      //No link acima está as configurações possiveis para usar na requisição http
-      String urlBase = 'https://api.mapbox.com/directions/v5/mapbox/walking/';
-      const String access_token = 'pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrOGk1bW50NzAyOTIzbXBqcnR4Njk2bGQifQ.fIxLWrS0pbmlErHwYSfjhw';
-      String urlFinal = urlBase +
-          minhaPosicao.longitude.toString() +
-          ',' +
-          minhaPosicao.latitude.toString() +
-          ';' +
-          symbolPosicao.longitude.toString() +
-          ',' +
-          symbolPosicao.latitude.toString() +
-          '?steps=true' +
-          '&access_token=' +
-          access_token;
-      print(urlFinal);
-      var url = Uri.parse(urlFinal);
-      var response = await http.get(url);
-      print('Response status: ${response.statusCode}');
-      print('Response body: ${response.body}');
-      Map<String, dynamic> valor = jsonDecode(response.body);
-      if (valor['code'] != "InvalidInput") {
-        //Codigo de erro, quando não encontra rota
-        List<dynamic> rotaJSON = valor['routes'][0]['legs'][0]['steps'];
-        List<dynamic> rotaAUX = [];
-        List<GeoPoint> pontosRota = [];
-        for (int i = 0; i < rotaJSON.length; i++) {
-          rotaAUX.add(rotaJSON[i]['intersections']);
-        }
-        for (int i = 0; i < rotaAUX.length; i++) {
-          for (int j = 0; j < rotaAUX[i].length; j++) {
-            GeoPoint aux = new GeoPoint(rotaAUX[i][j]['location'][1], rotaAUX[i][j]['location'][0]);
-            pontosRota.add(aux);
+    try{
+      minhaLocalizacao(false);
+      GeoPoint minhaPosicao = GeoPoint(_position.latitude, _position.longitude);
+      String idPontoBus = symbolMaisProximo(_dadosPontoBus);
+      if(idPontoBus != ""){//Ou seja, encontrou uma ponto de bus
+        GeoPoint symbolPosicao = _dadosPontoBus[idPontoBus]['localAtual'];
+        //https://docs.mapbox.com/api/navigation/directions/#retrieve-directions
+        //No link acima está as configurações possiveis para usar na requisição http
+        String urlBase = 'https://api.mapbox.com/directions/v5/mapbox/walking/';
+        const String access_token = 'pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrOGk1bW50NzAyOTIzbXBqcnR4Njk2bGQifQ.fIxLWrS0pbmlErHwYSfjhw';
+        String urlFinal = urlBase +
+            minhaPosicao.longitude.toString() +
+            ',' +
+            minhaPosicao.latitude.toString() +
+            ';' +
+            symbolPosicao.longitude.toString() +
+            ',' +
+            symbolPosicao.latitude.toString() +
+            '?steps=true' +
+            '&access_token=' +
+            access_token;
+        print(urlFinal);
+        var url = Uri.parse(urlFinal);
+        var response = await http.get(url);
+        print('Response status: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        Map<String, dynamic> valor = jsonDecode(response.body);
+        if (valor['code'] != "InvalidInput") {
+          //Codigo de erro, quando não encontra rota
+          List<dynamic> rotaJSON = valor['routes'][0]['legs'][0]['steps'];
+          List<dynamic> rotaAUX = [];
+          List<GeoPoint> pontosRota = [];
+          for (int i = 0; i < rotaJSON.length; i++) {
+            rotaAUX.add(rotaJSON[i]['intersections']);
           }
-        }
-        if(pontosRota.isNotEmpty){
-          List<LatLng> rotaGeradaConvertida = [];
-          for (int i = 0; i < pontosRota.length; i++) {
-            LatLng auxPoint =
-            new LatLng(pontosRota[i].latitude, pontosRota[i].longitude);
-            rotaGeradaConvertida.add(auxPoint);
-          }
-          await mapController.addLine(
-            LineOptions(
-              geometry: rotaGeradaConvertida,
-              lineColor: "#ff0000",
-              lineWidth: 5.0,
-              lineOpacity: 0.5,
-            ),
-          ).then((_){
-            LatLng northeast;
-            LatLng southwest;
-            if (minhaPosicao.latitude <= symbolPosicao.latitude) {
-              northeast = new LatLng(symbolPosicao.latitude, symbolPosicao.longitude);
-              southwest = new LatLng(minhaPosicao.latitude, minhaPosicao.longitude);
-            } else {
-              northeast = new LatLng(minhaPosicao.latitude, minhaPosicao.longitude);
-              southwest = new LatLng(symbolPosicao.latitude, symbolPosicao.longitude);
+          for (int i = 0; i < rotaAUX.length; i++) {
+            for (int j = 0; j < rotaAUX[i].length; j++) {
+              GeoPoint aux = new GeoPoint(rotaAUX[i][j]['location'][1], rotaAUX[i][j]['location'][0]);
+              pontosRota.add(aux);
             }
-            LatLngBounds zoomPontos = new LatLngBounds(
-              northeast: northeast,
-              southwest: southwest,
-            );
-            mapController
-                .animateCamera(
-              CameraUpdate.newLatLngBounds(zoomPontos),
-            );
-            setState(() {
-              _txtBtnBuscar = "Apagar Rota";
-              _btnBuscar = Colors.red;
-              _rotaAtiva = true;
-              _rotaGerada = pontosRota;
+          }
+          if(pontosRota.isNotEmpty){
+            List<LatLng> rotaGeradaConvertida = [];
+            for (int i = 0; i < pontosRota.length; i++) {
+              LatLng auxPoint =
+              new LatLng(pontosRota[i].latitude, pontosRota[i].longitude);
+              rotaGeradaConvertida.add(auxPoint);
+            }
+            await mapController.addLine(
+              LineOptions(
+                geometry: rotaGeradaConvertida,
+                lineColor: "#ff0000",
+                lineWidth: 5.0,
+                lineOpacity: 0.5,
+              ),
+            ).then((_){
+              LatLng northeast;
+              LatLng southwest;
+              if (minhaPosicao.latitude <= symbolPosicao.latitude) {
+                northeast = new LatLng(symbolPosicao.latitude, symbolPosicao.longitude);
+                southwest = new LatLng(minhaPosicao.latitude, minhaPosicao.longitude);
+              } else {
+                northeast = new LatLng(minhaPosicao.latitude, minhaPosicao.longitude);
+                southwest = new LatLng(symbolPosicao.latitude, symbolPosicao.longitude);
+              }
+              LatLngBounds zoomPontos = new LatLngBounds(
+                northeast: northeast,
+                southwest: southwest,
+              );
+              mapController
+                  .animateCamera(
+                CameraUpdate.newLatLngBounds(zoomPontos),
+              );
+              setState(() {
+                _txtBtnBuscar = "Apagar Rota";
+                _btnBuscar = Colors.red;
+                _rotaAtiva = true;
+                _rotaGerada = pontosRota;
+              });
+              calculaTimePonto(_rotaGerada);
             });
-            calculaTimePonto(_rotaGerada);
-          });
+          }else{
+            showOkAlertDialog(context: context, title: "Atenção", message: "Ocorreu um erro: Rota gerada é vazia!");
+          }
         }else{
-          showOkAlertDialog(context: context, title: "Atenção", message: "Ocorreu um erro: Rota gerada é vazia!");
+          showOkAlertDialog(context: context, title: "Atenção", message: "Não existe caminho até o ponto mais próximo!");
         }
       }else{
-        showOkAlertDialog(context: context, title: "Atenção", message: "Não existe caminho até o ponto mais próximo!");
+        showOkAlertDialog(context: context, title: "Atenção", message: "Não existe pontos de ônibus no mapa!");
       }
-    }else{
-      showOkAlertDialog(context: context, title: "Atenção", message: "Não existe pontos de ônibus no mapa!");
+    }catch(error){
+      print(error);
     }
   }
 
@@ -1035,9 +1043,8 @@ class _MapaState extends State<Mapa> {
     for(int i = 0; (i+1) < novaRota.length; i++){
       distanciaTotal += Geolocator.distanceBetween(novaRota[i].latitude, novaRota[i].longitude, novaRota[i+1].latitude, novaRota[i+1].longitude);
     }
-    print(distanciaTotal);
     double velocidade = _minhaPosicao.speed;//Recebe em M/s, porém não funfa em todos os dispositivos, nesse caso aparece como 0
-    if(velocidade < 0.5){//Pessoa está praticamente parada
+    if(velocidade < 0.3){//Pessoa está praticamente parada
       if(distanciaTotal >= 1000){
         distanciaTotal /= 1000;
         setState(() {
@@ -1045,7 +1052,7 @@ class _MapaState extends State<Mapa> {
         });
       }else{
         setState(() {
-          _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} m";
+          _txtTimeBus = "Eu → Ponto: ${distanciaTotal.toStringAsFixed(1)} metros";
         });
       }
     }else{
