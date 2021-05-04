@@ -215,7 +215,7 @@ class Cadastro extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Padding(
-                        padding: EdgeInsets.only(right: 10),
+                        padding: EdgeInsets.only(right: 0),
                         child: Text(
                           "Atenção, ao se cadastrar você estará automaticamente concordando com os Termos de Uso do aplicativo WikiBus",
                           textAlign: TextAlign.center,
@@ -226,14 +226,14 @@ class Cadastro extends StatelessWidget {
                 ),
               ),
               Padding(
-                padding: EdgeInsets.only(top: 10, bottom: 10),
+                padding: EdgeInsets.only(top: 5, bottom: 20),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ElevatedButton.icon(
                       icon: Icon(Icons.open_in_browser),
                       label: Text(
-                          "Abrir documento"
+                          "Termo de Uso"
                       ),
                       onPressed: () async{
                         await canLaunch(_url) ? await launch(_url) : throw 'Não conseguiu iniciar $_url';

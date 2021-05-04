@@ -1,12 +1,51 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:validadores/Validador.dart';
+import 'package:geolocator/geolocator.dart';
 
-class Login extends StatelessWidget {
+class Login extends StatefulWidget {
+  @override
+  _LoginState createState() => _LoginState();
+}
 
+class _LoginState extends State<Login> {
   final _keyForm = GlobalKey<FormState>();
   final TextEditingController _email = TextEditingController();
   final TextEditingController _senha = TextEditingController();
+
+  @override
+  void initState() {
+    getPermissaoLocalizacao();
+    super.initState();
+  }
+
+  void getPermissaoLocalizacao() async{
+    bool localAtivo;
+    LocationPermission permissao;
+
+    localAtivo = await Geolocator.isLocationServiceEnabled();
+    if(!localAtivo){
+      print("GPS Desativado!");
+    }
+
+    permissao = await Geolocator.checkPermission();
+    if(permissao == LocationPermission.denied){
+
+      permissao = await Geolocator.requestPermission();
+      if(permissao == LocationPermission.deniedForever){
+        print("Permissão Negada Permanentemente! O usuário tem que ir nas configurações para alterar...");
+      }
+
+      if(permissao == LocationPermission.denied){
+        print("Permissão Negada!");
+      }
+
+    }else if(permissao == LocationPermission.always){
+      print("Permissão para utilizar em segundo plano!");
+    }else if(permissao == LocationPermission.whileInUse){
+      print("Permissão para utilizar o GPS só quand o App está aberto!");
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

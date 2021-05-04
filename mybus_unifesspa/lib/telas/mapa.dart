@@ -954,7 +954,7 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
         //https://docs.mapbox.com/api/navigation/directions/#retrieve-directions
         //No link acima está as configurações possiveis para usar na requisição http
         String urlBase = 'https://api.mapbox.com/directions/v5/mapbox/walking/';
-        const String access_token = 'pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrOGk1bW50NzAyOTIzbXBqcnR4Njk2bGQifQ.fIxLWrS0pbmlErHwYSfjhw';
+        const String access_token = 'pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrbnV4ZTR6dzBldDMycmxkbTdsZ3JleWEifQ.tEVYvy6Ya9q2KOCndaQvXw';
         String urlFinal = urlBase +
             minhaPosicao.longitude.toString() +
             ',' +
@@ -1153,7 +1153,7 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
           ),
           Expanded(
             child: MapboxMap(
-              accessToken: "pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrOGk1bW50NzAyOTIzbXBqcnR4Njk2bGQifQ.fIxLWrS0pbmlErHwYSfjhw",
+              accessToken: "pk.eyJ1IjoibXlidXNwcm9qZXRvIiwiYSI6ImNrbnV4ZTR6dzBldDMycmxkbTdsZ3JleWEifQ.tEVYvy6Ya9q2KOCndaQvXw",
               onMapCreated: _onMapCreated,
               initialCameraPosition: const CameraPosition(target: LatLng(0.0, 0.0)),
               onStyleLoadedCallback: _onStyleLoadedCallback,
