@@ -266,7 +266,19 @@ class Cadastro extends StatelessWidget {
                                 ),
                               );
                               ScaffoldMessenger.of(context).showSnackBar(snackBar);
-                              Navigator.pop(context);
+                              FirebaseAuth firebase = FirebaseAuth.instance;
+                              firebase.signInWithEmailAndPassword(email: _email.text, password: _senha.text).then((value){
+                                Navigator.of(context).pushNamedAndRemoveUntil("tutorial", (Route<dynamic> route) => false);
+                              }).catchError((error){
+                                Navigator.pop(context);
+                                print(error);
+                                final snackBar = SnackBar(
+                                  content: Text(
+                                      "Usuário e/ou Senha errado!"
+                                  ),
+                                );
+                                ScaffoldMessenger.of(context).showSnackBar(snackBar);
+                              });
                             });
                           }).catchError((error){
                             print(error);

@@ -1030,7 +1030,7 @@ class _MapaState extends State<Mapa> with WidgetsBindingObserver{
             showOkAlertDialog(context: context, title: "Atenção", message: "Ocorreu um erro: Rota gerada é vazia!");
           }
         }else{
-          showOkAlertDialog(context: context, title: "Atenção", message: "Não existe caminho até o ponto mais próximo!");
+          showOkAlertDialog(context: context, title: "Atenção", message: "Não existe caminho até o ponto mais próximo ou é muito longe!");
         }
       }else{
         showOkAlertDialog(context: context, title: "Atenção", message: "Não existe pontos de ônibus no mapa!");

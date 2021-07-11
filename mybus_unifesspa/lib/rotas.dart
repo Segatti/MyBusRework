@@ -4,6 +4,7 @@ import 'package:mybus_unifesspa/telas/feedback.dart';
 import 'package:mybus_unifesspa/telas/info.dart';
 import 'package:mybus_unifesspa/telas/login.dart';
 import 'package:mybus_unifesspa/telas/mapa.dart';
+import 'package:mybus_unifesspa/telas/tutorial.dart';
 
 class Rotas{
   static Route<dynamic> gerarRotas(RouteSettings routeSettings){
@@ -12,6 +13,8 @@ class Rotas{
         return MaterialPageRoute(builder: (_) => Login());
       case "cadastro":
         return MaterialPageRoute(builder: (_) => Cadastro());
+      case "tutorial":
+        return MaterialPageRoute(builder: (_) => Tutorial());
       case "mapa":
         return MaterialPageRoute(builder: (_) => Mapa());
       case "info":
